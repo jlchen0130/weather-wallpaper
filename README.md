@@ -1,4 +1,6 @@
-# Amigurumi Weather Theme
+# codex_AI_lab
+
+## Amigurumi Weather Theme
 
 Android wallpaper app for generating Amigurumi crochet city wallpapers from:
 
