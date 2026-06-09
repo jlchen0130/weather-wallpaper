@@ -101,15 +101,36 @@ public class DynamicWallpaperService extends WallpaperService {
             executor.execute(() -> {
                 try {
                     WeatherScene next = SceneResolver.resolve(DynamicWallpaperService.this);
-                    scene = next;
+                    String oldKey = prefs.getString(AppConfig.KEY_LAST_SCENE_KEY, "");
+                    String newKey = next.sceneKey();
                     Bitmap latest = WallpaperStore.load(DynamicWallpaperService.this);
-                    if (latest != null) background = latest;
+                    if (background == null && latest != null) background = latest;
+                    scene = next;
+                    if (!newKey.equals(oldKey) || background == null) {
+                        Bitmap generated = generateBackground(next, prefs);
+                        background = generated;
+                        WallpaperStore.save(DynamicWallpaperService.this, generated);
+                        prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, newKey).apply();
+                    }
                 } catch (Exception ignored) {
                     scene = SceneFactory.createFallback();
                     Bitmap latest = WallpaperStore.load(DynamicWallpaperService.this);
                     if (latest != null) background = latest;
                 }
             });
+        }
+
+        private Bitmap generateBackground(WeatherScene next, SharedPreferences prefs) {
+            String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
+            String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
+            if (apiKey != null && !apiKey.trim().isEmpty()) {
+                try {
+                    Bitmap generated = ImageGenerator.generate(apiKey.trim(), model, PromptBuilder.build(next));
+                    if (generated != null) return generated;
+                } catch (Exception ignored) {
+                }
+            }
+            return LocalWallpaperRenderer.render(next);
         }
 
         private void drawCover(Canvas canvas, Bitmap bitmap, int width, int height) {

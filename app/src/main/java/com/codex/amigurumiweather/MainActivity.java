@@ -241,6 +241,7 @@ public class MainActivity extends Activity {
                 }
 
                 WallpaperManager.getInstance(this).setBitmap(bitmap);
+                prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey()).apply();
                 Bitmap finalBitmap = bitmap;
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(finalBitmap, 360, 640, true));
@@ -292,6 +293,7 @@ class AppConfig {
     static final String KEY_USE_CUSTOM = "use_custom_location";
     static final String KEY_CUSTOM_CITY = "custom_city";
     static final String KEY_UPDATE_MINUTES = "update_minutes";
+    static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String LAST_WALLPAPER_FILE = "last_wallpaper.png";
 
     static int parseMinutes(String raw) {
@@ -424,6 +426,10 @@ class WeatherScene {
         this.timePeriod = timePeriod;
         this.landmarks = landmarks;
         this.language = language;
+    }
+
+    String sceneKey() {
+        return cityEnglish + "|" + country + "|" + weather + "|" + timePeriod;
     }
 }
 

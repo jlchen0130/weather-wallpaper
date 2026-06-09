@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3
+
+- Changed Live Wallpaper refresh semantics.
+- The configured interval now checks scene state only.
+- A new wallpaper is generated only when city/location, weather condition, or time period changes.
+- Temperature-only changes no longer regenerate wallpaper.
+
 ## 1.2
 
 - Removed generated clock/date/temperature text from wallpaper images.

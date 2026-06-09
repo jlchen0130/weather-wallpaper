@@ -13,8 +13,8 @@ Android wallpaper app for generating Amigurumi crochet city wallpapers from:
 ## Current Build
 
 - Package: `com.codex.amigurumiweather`
-- Latest APK: `outputs/AmigurumiWeatherTheme-v1.2-debug.apk`
-- Version: `1.2`
+- Latest APK: `outputs/AmigurumiWeatherTheme-v1.3-debug.apk`
+- Version: `1.3`
 - Min SDK: 26
 - Target SDK: 36
 
@@ -41,4 +41,10 @@ Android apps cannot silently self-update from GitHub unless the device explicitl
 - Play Store / private distribution: preferred for signed production builds.
 - In-app content updates: weather and generated wallpaper content can update automatically without reinstalling the app.
 
-The app already supports automatic weather/content refresh for the Live Wallpaper based on the configured interval.
+The configured interval controls how often the app checks GPS/weather/time-period state. A new wallpaper is generated only when one of these scene keys changes:
+
+- city/location
+- weather condition
+- time period / sky tone
+
+Temperature-only changes do not regenerate the wallpaper.
