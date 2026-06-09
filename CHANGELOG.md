@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4
+
+- Added Samsung U23/S23-targeted APK asset naming.
+- Added in-app update button that downloads the best APK from GitHub Releases based on phone model.
+- Moved OpenWeather access behind a backend URL so the API key is not stored in the APK.
+- Added Cloudflare Worker backend example.
+- Added Traditional Chinese README instructions.
+
 ## 1.3
 
 - Changed Live Wallpaper refresh semantics.

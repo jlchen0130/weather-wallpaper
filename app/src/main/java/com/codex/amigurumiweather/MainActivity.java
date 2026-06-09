@@ -20,6 +20,8 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Base64;
@@ -63,7 +65,7 @@ public class MainActivity extends Activity {
     private TextView statusText;
     private TextView promptText;
     private ImageView preview;
-    private EditText openWeatherKey;
+    private EditText weatherBackendUrl;
     private EditText openAiKey;
     private EditText openAiModel;
     private EditText customCity;
@@ -92,7 +94,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Static wallpaper plus animated Live Wallpaper. Location can be automatic or custom.");
+        subtitle.setText("Static wallpaper plus animated Live Wallpaper. Weather key is kept on your backend.");
         subtitle.setTextSize(14f);
         subtitle.setTextColor(Color.rgb(92, 74, 62));
         subtitle.setPadding(0, dp(6), 0, dp(14));
@@ -111,7 +113,7 @@ public class MainActivity extends Activity {
         if (updateMinutes.getText().toString().trim().isEmpty()) {
             updateMinutes.setText("30");
         }
-        openWeatherKey = input("OpenWeather API Key", AppConfig.KEY_OPENWEATHER, true);
+        weatherBackendUrl = input("Weather backend URL", AppConfig.KEY_WEATHER_BACKEND_URL, false);
         openAiKey = input("OpenAI API Key", AppConfig.KEY_OPENAI, true);
         openAiModel = input("OpenAI image model", AppConfig.KEY_OPENAI_MODEL, false);
         if (openAiModel.getText().toString().trim().isEmpty()) {
@@ -120,7 +122,7 @@ public class MainActivity extends Activity {
 
         root.addView(customCity);
         root.addView(updateMinutes);
-        root.addView(openWeatherKey);
+        root.addView(weatherBackendUrl);
         root.addView(openAiKey);
         root.addView(openAiModel);
 
@@ -152,6 +154,14 @@ public class MainActivity extends Activity {
             openLiveWallpaperPicker();
         });
         root.addView(live, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        Button update = new Button(this);
+        update.setText("Check app update");
+        update.setOnClickListener(v -> {
+            saveSettings();
+            checkAndDownloadUpdate();
+        });
+        root.addView(update, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
 
         statusText = new TextView(this);
         statusText.setText("Status: ready");
@@ -197,7 +207,7 @@ public class MainActivity extends Activity {
             .putBoolean(AppConfig.KEY_USE_CUSTOM, useCustomLocation.isChecked())
             .putString(AppConfig.KEY_CUSTOM_CITY, customCity.getText().toString().trim())
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(minutes))
-            .putString(AppConfig.KEY_OPENWEATHER, openWeatherKey.getText().toString().trim())
+            .putString(AppConfig.KEY_WEATHER_BACKEND_URL, weatherBackendUrl.getText().toString().trim())
             .putString(AppConfig.KEY_OPENAI, openAiKey.getText().toString().trim())
             .putString(AppConfig.KEY_OPENAI_MODEL, model)
             .apply();
@@ -276,6 +286,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void checkAndDownloadUpdate() {
+        status("Status: checking GitHub release for this device...");
+        executor.execute(() -> {
+            try {
+                UpdateAsset asset = AppUpdater.findBestAsset();
+                if (asset == null) {
+                    status("Status: no APK asset found in latest GitHub release.");
+                    return;
+                }
+                status("Status: downloading " + asset.name + "...");
+                File apk = AppUpdater.download(this, asset);
+                Uri uri = Uri.parse("content://com.codex.amigurumiweather.apkprovider/" + apk.getName());
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                status("Status: installer opened for " + asset.name + ".");
+            } catch (Exception error) {
+                status("Status: update failed. " + error.getMessage());
+            }
+        });
+    }
+
     private void status(String message) {
         runOnUiThread(() -> statusText.setText(message));
     }
@@ -287,7 +321,7 @@ public class MainActivity extends Activity {
 
 class AppConfig {
     static final String PREFS = "theme_config";
-    static final String KEY_OPENWEATHER = "openweather_key";
+    static final String KEY_WEATHER_BACKEND_URL = "weather_backend_url";
     static final String KEY_OPENAI = "openai_key";
     static final String KEY_OPENAI_MODEL = "openai_model";
     static final String KEY_USE_CUSTOM = "use_custom_location";
@@ -305,6 +339,60 @@ class AppConfig {
         } catch (Exception ignored) {
             return 30;
         }
+    }
+}
+
+class UpdateAsset {
+    final String name;
+    final String url;
+
+    UpdateAsset(String name, String url) {
+        this.name = name;
+        this.url = url;
+    }
+}
+
+class AppUpdater {
+    static UpdateAsset findBestAsset() throws Exception {
+        JSONObject release = new JSONObject(Http.get(
+            new URL("https://api.github.com/repos/jlchen0130/codex_AI_lab/releases/latest"), null));
+        org.json.JSONArray assets = release.getJSONArray("assets");
+        String model = (Build.MANUFACTURER + " " + Build.MODEL + " " + Build.DEVICE).toLowerCase(Locale.US);
+        boolean samsungU23 = model.contains("samsung") && (model.contains("u23") || model.contains("s23"));
+        UpdateAsset fallback = null;
+        for (int i = 0; i < assets.length(); i++) {
+            JSONObject item = assets.getJSONObject(i);
+            String name = item.getString("name");
+            if (!name.toLowerCase(Locale.US).endsWith(".apk")) continue;
+            String url = item.getString("browser_download_url");
+            String lower = name.toLowerCase(Locale.US);
+            if (samsungU23 && lower.contains("samsung") && (lower.contains("u23") || lower.contains("s23"))) {
+                return new UpdateAsset(name, url);
+            }
+            if (fallback == null && (lower.contains("universal") || lower.contains("debug") || lower.contains("theme"))) {
+                fallback = new UpdateAsset(name, url);
+            }
+        }
+        return fallback;
+    }
+
+    static File download(Context context, UpdateAsset asset) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL(asset.url).openConnection();
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(120000);
+        if (connection.getResponseCode() < 200 || connection.getResponseCode() > 299) {
+            throw new IllegalStateException("HTTP " + connection.getResponseCode());
+        }
+        File file = new File(context.getFilesDir(), "update-" + asset.name.replaceAll("[^A-Za-z0-9._-]", "_"));
+        try (BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
+             FileOutputStream out = new FileOutputStream(file)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+        }
+        return file;
     }
 }
 
@@ -385,17 +473,19 @@ class SceneResolver {
 
     static WeatherInfo fetchWeather(Context context, double lat, double lon) throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-        String key = prefs.getString(AppConfig.KEY_OPENWEATHER, "");
-        if (key == null || key.trim().isEmpty()) return new WeatherInfo("Cloudy", 27, 32);
-        URL url = new URL("https://api.openweathermap.org/data/2.5/weather"
-            + "?lat=" + lat + "&lon=" + lon + "&units=metric&appid=" + key.trim());
+        String backend = prefs.getString(AppConfig.KEY_WEATHER_BACKEND_URL, "");
+        if (backend == null || backend.trim().isEmpty()) return new WeatherInfo("Cloudy", 27, 32);
+        String separator = backend.contains("?") ? "&" : "?";
+        URL url = new URL(backend.trim() + separator + "lat=" + lat + "&lon=" + lon + "&units=metric");
         JSONObject root = new JSONObject(Http.get(url, null));
-        JSONObject main = root.getJSONObject("main");
-        String weatherMain = root.getJSONArray("weather").getJSONObject(0).getString("main");
+        JSONObject main = root.has("main") ? root.getJSONObject("main") : root;
+        String weatherMain = root.has("weather")
+            ? root.getJSONArray("weather").getJSONObject(0).getString("main")
+            : root.optString("weather", "Clouds");
         return new WeatherInfo(
             WeatherMapper.normalize(weatherMain),
-            (int) Math.round(main.getDouble("temp_min")),
-            (int) Math.round(main.getDouble("temp_max"))
+            (int) Math.round(main.optDouble("temp_min", main.optDouble("tempMin", 27))),
+            (int) Math.round(main.optDouble("temp_max", main.optDouble("tempMax", 32)))
         );
     }
 }

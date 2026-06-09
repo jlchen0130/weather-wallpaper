@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="true"
@@ -31,5 +32,11 @@
                 android:name="android.service.wallpaper"
                 android:resource="@xml/amigurumi_wallpaper" />
         </service>
+
+        <provider
+            android:name=".ApkFileProvider"
+            android:authorities="com.codex.amigurumiweather.apkprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

@@ -1,0 +1,55 @@
+# codex_AI_lab
+
+## Amigurumi Weather Theme 繁體中文說明
+
+這是一個 Android 手機桌布 App，會依照 GPS 或自訂城市、天氣 API、日期時間、城市地標與語言規則，自動產生 Amigurumi 鉤針編織風格的城市桌布。
+
+## APK
+
+- 通用版：`outputs/AmigurumiWeatherTheme-v1.4-universal-debug.apk`
+- Samsung U23/S23 版：`outputs/AmigurumiWeatherTheme-v1.4-samsung-u23-debug.apk`
+
+## 使用流程
+
+1. 安裝 APK。
+2. 開啟 App。
+3. 使用 GPS 自動定位，或勾選自訂城市並輸入城市名稱。
+4. 設定更新檢查間隔，預設為 `30` 分鐘。
+5. 輸入天氣後端 URL。
+6. 需要 AI 產圖時再輸入 OpenAI API key。
+7. 點選 `Set static wallpaper` 產生靜態桌布。
+8. 點選 `Open animated Live Wallpaper` 套用動態桌布。
+9. 點選 `Check app update` 檢查 GitHub 上的新版本。
+
+## 更新機制
+
+App 會從 GitHub Releases 讀取最新版本。下載前會依手機型號挑選 APK：
+
+- Samsung U23/S23：優先下載 Samsung 專用 APK。
+- 其他手機：下載通用 APK。
+
+Android 系統仍會要求使用者確認安裝，App 無法在背景靜默安裝新版。
+
+## 天氣 API key
+
+OpenWeather API key 已改為放在後端，不放在 Android APK 內。可使用 `backend/cloudflare-worker-openweather.js` 部署到 Cloudflare Workers，並在 Worker Secret 設定：
+
+```text
+OPENWEATHER_API_KEY=你的 OpenWeather API key
+```
+
+App 只需填入 Worker URL，例如：
+
+```text
+https://your-worker.example.workers.dev?lat=22.6273&lon=120.3014&units=metric
+```
+
+## 重新生成規則
+
+App 會依設定間隔檢查狀態，但只有下列其中一項改變時才重新生成新桌布：
+
+- 地點
+- 天氣
+- 天色時段
+
+單純溫度改變不會重新產圖。
