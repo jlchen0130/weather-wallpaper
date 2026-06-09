@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+work/
+*.keystore
+*.jks
+*.apk.idsig
+
+# Keep released APK deliverables under outputs/.
+!outputs/
+!outputs/*.apk
