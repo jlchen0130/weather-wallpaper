@@ -820,18 +820,18 @@ class Rules {
         WEATHER.put("Snowy", new WeatherTemplate("white winter yarn landscape", "crochet snowflakes"));
         WEATHER.put("Foggy", new WeatherTemplate("felt fog", "soft dreamy atmosphere"));
         TIME.put("Morning", "soft sunrise");
-        TIME.put("Afternoon", "bright warm daylight");
+        TIME.put("Noon", "bright warm noon daylight");
         TIME.put("Sunset", "orange pink sky");
         TIME.put("Evening", "warm street lights");
-        TIME.put("Night", "deep blue knitted sky");
+        TIME.put("DeepNight", "deep blue knitted sky");
     }
 
     static String getTimePeriod(int hour) {
         if (hour >= 5 && hour <= 10) return "Morning";
-        if (hour >= 11 && hour <= 16) return "Afternoon";
+        if (hour >= 11 && hour <= 14) return "Noon";
         if (hour >= 17 && hour <= 18) return "Sunset";
-        if (hour >= 19 && hour <= 21) return "Evening";
-        return "Night";
+        if (hour >= 19 && hour <= 22) return "Evening";
+        return "DeepNight";
     }
 
     static WeatherTemplate weatherTemplate(String weather) {
@@ -846,7 +846,7 @@ class Rules {
 
     static String textColor(String weather, String period) {
         if ("Sunset".equals(period)) return "Deep Orange";
-        if ("Night".equals(period)) return "Ivory White";
+        if ("DeepNight".equals(period)) return "Ivory White";
         if ("Cloudy".equals(weather)) return "Dark Gray";
         if ("Rainy".equals(weather)) return "Cream White";
         if ("Snowy".equals(weather)) return "Camel";
@@ -1123,7 +1123,7 @@ class LocalWallpaperRenderer {
                 start = Color.rgb(255, 210, 155);
                 end = Color.rgb(168, 217, 224);
                 break;
-            case "Afternoon":
+            case "Noon":
                 start = Color.rgb(145, 202, 224);
                 end = Color.rgb(255, 230, 177);
                 break;
@@ -1131,7 +1131,7 @@ class LocalWallpaperRenderer {
                 start = Color.rgb(237, 126, 92);
                 end = Color.rgb(255, 196, 150);
                 break;
-            case "Night":
+            case "DeepNight":
                 start = Color.rgb(27, 44, 78);
                 end = Color.rgb(69, 84, 123);
                 break;
@@ -1186,7 +1186,7 @@ class LocalWallpaperRenderer {
             RectF rect = new RectF(x, top, x + 145f, ground + 40f);
             canvas.drawRoundRect(rect, 32f, 32f, paint);
             drawYarnLines(canvas, rect);
-            if ("Evening".equals(scene.timePeriod) || "Night".equals(scene.timePeriod)) {
+            if ("Evening".equals(scene.timePeriod) || "DeepNight".equals(scene.timePeriod)) {
                 drawWindows(canvas, rect, frame + i * 9);
             }
         }
@@ -1214,7 +1214,7 @@ class LocalWallpaperRenderer {
     }
 
     private static int textPaintColor(WeatherScene scene) {
-        if ("Night".equals(scene.timePeriod) || "Rainy".equals(scene.weather)) {
+        if ("DeepNight".equals(scene.timePeriod) || "Rainy".equals(scene.weather)) {
             return Color.rgb(255, 247, 224);
         }
         if ("Sunset".equals(scene.timePeriod)) {
@@ -1300,7 +1300,7 @@ class LocalWallpaperRenderer {
     private static void drawLiveMotionOverlay(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         float cloudDrift = (frame * 1.7f) % (width + 360f);
-        paint.setColor(Color.argb("Night".equals(scene.timePeriod) ? 70 : 90, 255, 250, 232));
+        paint.setColor(Color.argb("DeepNight".equals(scene.timePeriod) ? 70 : 90, 255, 250, 232));
         for (int i = 0; i < 4; i++) {
             float x = -260f + ((cloudDrift + i * width * 0.36f) % (width + 420f));
             float y = height * (0.18f + i * 0.055f);
@@ -1316,7 +1316,7 @@ class LocalWallpaperRenderer {
             canvas.drawCircle(x, y, 4f + (i % 3) * 2f, paint);
         }
 
-        if ("Night".equals(scene.timePeriod) || "Evening".equals(scene.timePeriod) || "Sunset".equals(scene.timePeriod)) {
+        if ("DeepNight".equals(scene.timePeriod) || "Evening".equals(scene.timePeriod) || "Sunset".equals(scene.timePeriod)) {
             for (int i = 0; i < 14; i++) {
                 int alpha = ((frame + i * 11) % 48) < 24 ? 180 : 85;
                 paint.setColor(Color.argb(alpha, 255, 202, 102));

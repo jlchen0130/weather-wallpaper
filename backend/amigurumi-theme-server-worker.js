@@ -13,6 +13,7 @@ const WEATHER_MAP = {
   Sand: "Foggy"
 };
 const PROMPT_VERSION = "sky-city-label-v3-city-level";
+const DAILY_PERIODS = ["Morning", "Noon", "Sunset", "Evening", "DeepNight"];
 
 export default {
   async fetch(request, env, ctx) {
@@ -30,7 +31,7 @@ export default {
       service: "amigurumi-theme-server",
       routes: [
         "/?lat=22.6273&lon=120.3014&units=metric",
-        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Afternoon"
+        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Noon"
       ]
     });
   },
@@ -82,7 +83,7 @@ async function wallpaper(request, env, ctx) {
 
 async function ensureWallpaper(env, url, scene, options = {}) {
   const citySlug = slug(scene.city);
-  const sceneKey = [citySlug, scene.country, scene.weather, scene.period, PROMPT_VERSION].join("|");
+  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
   const existing = options.force ? null : await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
@@ -198,18 +199,20 @@ async function refreshTrackedCities(env) {
   for (const city of cities) {
     try {
       const weatherInfo = await fetchWeatherByLocation(env, city.lat, city.lon);
-      const scene = {
-        city: city.city,
-        cityLocal: city.cityLocal || city.city,
-        country: city.country || "Taiwan",
-        date: todayForOffset(city.utcOffset || 8),
-        weather: weatherInfo.weather,
-        period: timePeriodForOffset(city.utcOffset || 8),
-        tempMin: String(Math.round(weatherInfo.temp_min)),
-        tempMax: String(Math.round(weatherInfo.temp_max)),
-        landmarks: city.landmarks || ["central station", "old town market", "city park"]
-      };
-      await ensureWallpaper(env, url, scene);
+      for (const period of DAILY_PERIODS) {
+        const scene = {
+          city: city.city,
+          cityLocal: city.cityLocal || city.city,
+          country: city.country || "Taiwan",
+          date: todayForOffset(city.utcOffset || 8),
+          weather: weatherInfo.weather,
+          period,
+          tempMin: String(Math.round(weatherInfo.temp_min)),
+          tempMax: String(Math.round(weatherInfo.temp_max)),
+          landmarks: city.landmarks || ["central station", "old town market", "city park"]
+        };
+        await ensureWallpaper(env, url, scene);
+      }
     } catch (error) {
       console.log(`tracked city refresh failed: ${city.city}: ${error.message}`);
     }
@@ -283,10 +286,10 @@ function todayForOffset(offset) {
 function timePeriodForOffset(offset) {
   const hour = shiftedDate(offset).getUTCHours();
   if (hour >= 5 && hour <= 10) return "Morning";
-  if (hour >= 11 && hour <= 16) return "Afternoon";
+  if (hour >= 11 && hour <= 14) return "Noon";
   if (hour >= 17 && hour <= 18) return "Sunset";
-  if (hour >= 19 && hour <= 21) return "Evening";
-  return "Night";
+  if (hour >= 19 && hour <= 22) return "Evening";
+  return "DeepNight";
 }
 
 function shiftedDate(offset) {
@@ -354,7 +357,7 @@ function readScene(url) {
     country: url.searchParams.get("country") || "Taiwan",
     date: url.searchParams.get("date") || new Date().toISOString().slice(0, 10),
     weather: url.searchParams.get("weather") || "Cloudy",
-    period: url.searchParams.get("period") || "Afternoon",
+    period: url.searchParams.get("period") || "Noon",
     tempMin: url.searchParams.get("tempMin") || "27",
     tempMax: url.searchParams.get("tempMax") || "32",
     landmarks: landmarks.length ? landmarks : ["central station", "old town market", "city park"]
@@ -364,13 +367,17 @@ function readScene(url) {
 function buildPrompt(scene) {
   const isTaiwan = scene.country === "Taiwan";
   const label = isTaiwan ? scene.cityLocal : scene.city;
+  const landmarks = selectedLandmarks(scene.landmarks);
   return [
     "Create a premium 9:16 Android wallpaper in miniature Amigurumi crochet style.",
     "Use only city or county-level geography. Do not depict districts, townships, streets, neighborhoods, or overly specific local areas.",
     `City: ${scene.city}. Country: ${scene.country}.`,
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
-    `Landmarks: ${scene.landmarks.join(", ")}.`,
+    `Landmarks: ${landmarks.join(", ")}.`,
+    "Use only these 2-3 landmark anchors as recognizable city signals; do not crowd the image with too many landmarks.",
     "All buildings, vehicles, people, shops, trees, and roads are handmade crochet toys.",
+    "Show Amigurumi people doing natural daily life actions, such as commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.",
+    "People should look active and varied, not just standing still.",
     "Keep the upper sky area light, calm, and visually clean so phone time, date, and status widgets do not conflict.",
     `Place one clear city name label in the pale open sky area: ${label}.`,
     "The city label should look embroidered with yarn, large enough to read, centered or upper-center, and must not overlap buildings, people, clouds, rain, or lock-screen widgets.",
@@ -379,6 +386,14 @@ function buildPrompt(scene) {
     "Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets.",
     "No extra readable text beyond the city name label."
   ].join("\n");
+}
+
+function selectedLandmarks(landmarks) {
+  const clean = (landmarks || [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  if (clean.length <= 3) return clean;
+  return [clean[0], clean[1], clean[2]];
 }
 
 async function generateImage(env, prompt) {
