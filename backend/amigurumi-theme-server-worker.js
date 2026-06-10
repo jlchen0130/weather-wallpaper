@@ -14,9 +14,12 @@ const WEATHER_MAP = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return cors();
+    if (env.WALLPAPER_BUCKET) {
+      ctx.waitUntil(cleanupExpired(env));
+    }
     if (url.pathname.startsWith("/files/")) return serveFile(url, env);
     if (url.searchParams.has("lat") && url.searchParams.has("lon") && !url.searchParams.has("city")) {
       return weather(request, env);
@@ -70,11 +73,18 @@ async function wallpaper(request, env) {
   const existing = await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
     const manifest = await existing.json();
-    return json({
-      ...manifest,
-      image_url: fileUrl(url, manifest.object_key),
-      reused: true
-    });
+    const existingImage = await env.WALLPAPER_BUCKET.get(manifest.object_key);
+    if (!existingImage || isExpired(existingImage.uploaded, env)) {
+      await env.WALLPAPER_BUCKET.delete(manifestKey);
+      if (existingImage) await env.WALLPAPER_BUCKET.delete(manifest.object_key);
+    } else {
+      return json({
+        ...manifest,
+        image_url: fileUrl(url, manifest.object_key),
+        reused: true,
+        expires_at: expiresAt(existingImage.uploaded, env)
+      });
+    }
   }
 
   const sequence = await nextSequence(env, citySlug, scene.date);
@@ -115,7 +125,8 @@ async function wallpaper(request, env) {
   return json({
     ...manifest,
     image_url: fileUrl(url, objectKey),
-    reused: false
+    reused: false,
+    expires_at: expiresAt(new Date(), env)
   });
 }
 
@@ -124,13 +135,49 @@ async function serveFile(url, env) {
   const key = decodeURIComponent(url.pathname.replace(/^\/files\//, ""));
   const object = await env.WALLPAPER_BUCKET.get(key);
   if (!object) return json({ error: "File not found" }, 404);
+  if (isExpired(object.uploaded, env)) {
+    await env.WALLPAPER_BUCKET.delete(key);
+    return json({ error: "File expired" }, 404);
+  }
   return new Response(object.body, {
     headers: {
       "content-type": object.httpMetadata?.contentType || "application/octet-stream",
-      "cache-control": "public, max-age=31536000, immutable",
+      "cache-control": "public, max-age=86400",
+      "expires": expiresAt(object.uploaded, env),
       "access-control-allow-origin": "*"
     }
   });
+}
+
+async function cleanupExpired(env) {
+  await cleanupPrefix(env, "wallpapers/");
+  await cleanupPrefix(env, "manifests/");
+}
+
+async function cleanupPrefix(env, prefix) {
+  let cursor;
+  do {
+    const listed = await env.WALLPAPER_BUCKET.list({ prefix, cursor, limit: 100 });
+    const expired = (listed.objects || [])
+      .filter((object) => isExpired(object.uploaded, env))
+      .map((object) => object.key);
+    if (expired.length) await env.WALLPAPER_BUCKET.delete(expired);
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+}
+
+function retentionMs(env) {
+  const hours = Number(env.WALLPAPER_RETENTION_HOURS || 24);
+  return Math.max(1, hours) * 60 * 60 * 1000;
+}
+
+function isExpired(uploaded, env) {
+  if (!uploaded) return false;
+  return Date.now() - new Date(uploaded).getTime() > retentionMs(env);
+}
+
+function expiresAt(uploaded, env) {
+  return new Date(new Date(uploaded).getTime() + retentionMs(env)).toUTCString();
 }
 
 function readScene(url) {

@@ -18,6 +18,7 @@ v1.6 使用 server 與手機端架構。Server 端會根據地點、天氣、天
 5. Server 沒圖就等待 server 產生新圖。
 6. 下載後自動更新 App 內預覽、靜態桌布與 Live Wallpaper 背景。
 7. 離線或連線異常時保留最後一張動態桌布，並在 App 顯示連線異常訊息。
+8. Server 端產生的桌布只保留 1 日，過期後自動清理。
 
 ## Server 端
 
@@ -33,6 +34,7 @@ backend/amigurumi-theme-server-worker.js
 OPENWEATHER_API_KEY=你的 OpenWeather API key
 OPENAI_API_KEY=你的 OpenAI API key
 OPENAI_IMAGE_MODEL=gpt-image-1
+WALLPAPER_RETENTION_HOURS=24
 ```
 
 Cloudflare R2 binding：

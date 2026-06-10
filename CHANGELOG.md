@@ -1,5 +1,10 @@
 # Changelog
 
+## Server
+
+- Cloudflare Worker now keeps generated wallpapers and manifests for one day only.
+- Expired R2 files are cleaned during API requests, and expired `/files/...` downloads return 404 after deletion.
+
 ## 1.6
 
 - Offline mode now keeps the last downloaded dynamic wallpaper instead of generating a new fallback image.

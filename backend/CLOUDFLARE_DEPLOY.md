@@ -8,6 +8,7 @@
 - R2 bucket：`amigurumi-weather-wallpapers`
 - R2 binding：`WALLPAPER_BUCKET`
 - Worker vars：`OPENAI_IMAGE_MODEL=gpt-image-1`
+- Worker vars：`WALLPAPER_RETENTION_HOURS=24`
 - Worker secrets：
   - `OPENWEATHER_API_KEY`
   - `OPENAI_API_KEY`
@@ -54,3 +55,7 @@ https://<worker-url>?lat=22.6273&lon=120.3014&units=metric
 ```text
 https://<worker-url>?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Afternoon
 ```
+
+## 桌布留存時間
+
+Server 端產生的桌布與 manifest 只保留 1 日。Worker 會在 API 請求時背景清理 R2 中超過 `WALLPAPER_RETENTION_HOURS` 的檔案；直接下載 `/files/...` 時，若檔案已過期也會刪除並回傳 404。

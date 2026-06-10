@@ -43,6 +43,7 @@ backend/amigurumi-theme-server-worker.js
 - 依 `地點 + 天氣 + 天色` 建立 scene key。
 - 若 server 已有符合 scene key 的桌布，直接回傳既有檔案。
 - 若沒有符合桌布，就產生新圖並儲存。
+- Server 端產生的桌布與 manifest 只保留 1 日，超過保留期會自動清理。
 
 ## 檔名規則
 
@@ -70,6 +71,7 @@ Cloudflare Worker 需要：
 OPENWEATHER_API_KEY=你的 OpenWeather API key
 OPENAI_API_KEY=你的 OpenAI API key
 OPENAI_IMAGE_MODEL=gpt-image-1
+WALLPAPER_RETENTION_HOURS=24
 ```
 
 R2 binding：
