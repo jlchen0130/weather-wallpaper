@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.7
+
+- Expanded Kaohsiung landmark data for AI wallpaper prompts.
+- Kaohsiung scenes now include a broader city-level landmark set such as Lotus Pond, Dragon and Tiger Pagodas, Fo Guang Shan Buddha Museum, Kaohsiung Music Center, Cijin Lighthouse, Dome of Light, Sizihwan, Central Park, and Liuhe Night Market.
+
 ## 2.6
 
 - Added phone-side wallpaper mode tracking for static versus dynamic wallpaper use.

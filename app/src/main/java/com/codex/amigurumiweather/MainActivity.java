@@ -916,7 +916,20 @@ class LandmarkDatabase {
 
     static {
         DATA.put("Taipei", Arrays.asList("Taipei 101", "Ximending", "Raohe Night Market"));
-        DATA.put("Kaohsiung", Arrays.asList("85 Sky Tower", "Love River", "Pier-2 Art Center"));
+        DATA.put("Kaohsiung", Arrays.asList(
+            "85 Sky Tower",
+            "Love River",
+            "Pier-2 Art Center",
+            "Lotus Pond",
+            "Dragon and Tiger Pagodas",
+            "Fo Guang Shan Buddha Museum",
+            "Kaohsiung Music Center",
+            "Cijin Lighthouse",
+            "Dome of Light",
+            "Sizihwan",
+            "Central Park",
+            "Liuhe Night Market"
+        ));
         DATA.put("New Taipei", Arrays.asList("Tamsui Old Street", "Jiufen", "Bitan"));
         DATA.put("Taoyuan", Arrays.asList("Daxi Old Street", "Shimen Reservoir", "Xpark"));
         DATA.put("Taichung", Arrays.asList("National Taichung Theater", "Miyahara", "Fengjia Night Market"));

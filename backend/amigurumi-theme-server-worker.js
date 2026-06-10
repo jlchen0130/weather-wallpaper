@@ -249,7 +249,20 @@ function trackedCities(env) {
       lat: 22.6273,
       lon: 120.3014,
       utcOffset: 8,
-      landmarks: ["85 Sky Tower", "Love River", "Pier-2 Art Center"]
+      landmarks: [
+        "85 Sky Tower",
+        "Love River",
+        "Pier-2 Art Center",
+        "Lotus Pond",
+        "Dragon and Tiger Pagodas",
+        "Fo Guang Shan Buddha Museum",
+        "Kaohsiung Music Center",
+        "Cijin Lighthouse",
+        "Dome of Light",
+        "Sizihwan",
+        "Central Park",
+        "Liuhe Night Market"
+      ]
     },
     {
       city: "Taipei",
