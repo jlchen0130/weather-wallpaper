@@ -1345,6 +1345,7 @@ class LocalWallpaperRenderer {
     }
 
     static void drawWeatherOverlay(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
+        drawLiveMotionOverlay(canvas, width, height, scene, frame);
         if ("Rainy".equals(scene.weather)) {
             Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
             paint.setColor(Color.argb(155, 220, 235, 242));
@@ -1360,5 +1361,55 @@ class LocalWallpaperRenderer {
             float offset = (frame % 180) - 90;
             canvas.drawOval(new RectF(-120 + offset, height * 0.18f, width + 160 + offset, height * 0.48f), paint);
         }
+    }
+
+    private static void drawLiveMotionOverlay(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float cloudDrift = (frame * 1.7f) % (width + 360f);
+        paint.setColor(Color.argb("Night".equals(scene.timePeriod) ? 70 : 90, 255, 250, 232));
+        for (int i = 0; i < 4; i++) {
+            float x = -260f + ((cloudDrift + i * width * 0.36f) % (width + 420f));
+            float y = height * (0.18f + i * 0.055f);
+            drawSoftCloud(canvas, x, y, width * 0.18f, paint);
+        }
+
+        for (int i = 0; i < 20; i++) {
+            int pulse = (int) ((frame * 5 + i * 23) % 160);
+            int alpha = 55 + Math.abs(80 - pulse);
+            paint.setColor(Color.argb(alpha, 255, 222, 142));
+            float x = (i * 73 + (frame % 220) * 0.55f) % width;
+            float y = height * 0.36f + ((i * 97) % (int) (height * 0.44f));
+            canvas.drawCircle(x, y, 4f + (i % 3) * 2f, paint);
+        }
+
+        if ("Night".equals(scene.timePeriod) || "Evening".equals(scene.timePeriod) || "Sunset".equals(scene.timePeriod)) {
+            for (int i = 0; i < 14; i++) {
+                int alpha = ((frame + i * 11) % 48) < 24 ? 180 : 85;
+                paint.setColor(Color.argb(alpha, 255, 202, 102));
+                float x = width * (0.08f + (i % 7) * 0.14f);
+                float y = height * (0.55f + (i / 7) * 0.12f);
+                canvas.drawCircle(x, y, 8f, paint);
+            }
+        }
+
+        if ("Sunny".equals(scene.weather)) {
+            paint.setColor(Color.argb(75, 255, 218, 105));
+            float glow = 44f + (frame % 60);
+            canvas.drawCircle(width * 0.82f, height * 0.17f, glow, paint);
+        }
+        if ("Snowy".equals(scene.weather)) {
+            paint.setColor(Color.argb(170, 255, 255, 255));
+            for (int i = 0; i < 36; i++) {
+                float x = (i * 47 + frame * 2) % width;
+                float y = height * 0.16f + ((i * 83 + frame * 5) % (int) (height * 0.74f));
+                canvas.drawCircle(x, y, 7f, paint);
+            }
+        }
+    }
+
+    private static void drawSoftCloud(Canvas canvas, float x, float y, float radius, Paint paint) {
+        canvas.drawOval(new RectF(x, y, x + radius * 1.7f, y + radius * 0.55f), paint);
+        canvas.drawOval(new RectF(x + radius * 0.42f, y - radius * 0.18f, x + radius * 1.32f, y + radius * 0.50f), paint);
+        canvas.drawOval(new RectF(x + radius, y + radius * 0.02f, x + radius * 2.18f, y + radius * 0.58f), paint);
     }
 }

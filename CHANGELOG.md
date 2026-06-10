@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9
+
+- Made Live Wallpaper motion visibly animated instead of relying on very subtle weather overlays.
+- Added drifting clouds, yarn-like light particles, evening light flicker, sunny glow, and snow motion overlays.
+- AI-generated backgrounds remain detailed static art while the Live Wallpaper layer supplies continuous motion.
+
 ## 2.8
 
 - Live Wallpaper now checks the theme server on every refresh interval even when city, weather, and time period are unchanged.
