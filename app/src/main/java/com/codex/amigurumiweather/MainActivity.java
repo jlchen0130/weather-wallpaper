@@ -358,6 +358,7 @@ class AppConfig {
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
     static final String LAST_WALLPAPER_FILE = "last_wallpaper.png";
+    static final String TEMP_WALLPAPER_FILE = "last_wallpaper.tmp";
 
     static int parseMinutes(String raw) {
         try {
@@ -428,9 +429,19 @@ class AppUpdater {
 class WallpaperStore {
     static void save(Context context, Bitmap bitmap) {
         try {
-            File file = new File(context.getFilesDir(), AppConfig.LAST_WALLPAPER_FILE);
-            try (FileOutputStream out = new FileOutputStream(file)) {
+            File directory = context.getFilesDir();
+            File temp = new File(directory, AppConfig.TEMP_WALLPAPER_FILE);
+            File file = new File(directory, AppConfig.LAST_WALLPAPER_FILE);
+            try (FileOutputStream out = new FileOutputStream(temp)) {
                 bitmap.compress(Bitmap.CompressFormat.PNG, 92, out);
+            }
+            cleanupOldWallpapers(context);
+            if (file.exists()) file.delete();
+            if (!temp.renameTo(file)) {
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 92, out);
+                }
+                temp.delete();
             }
         } catch (Exception ignored) {
         }
@@ -445,6 +456,21 @@ class WallpaperStore {
             }
         } catch (Exception ignored) {
             return null;
+        }
+    }
+
+    private static void cleanupOldWallpapers(Context context) {
+        File[] files = context.getFilesDir().listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            String name = file.getName();
+            boolean keep = AppConfig.LAST_WALLPAPER_FILE.equals(name)
+                || AppConfig.TEMP_WALLPAPER_FILE.equals(name);
+            boolean wallpaper = name.startsWith("wallpaper-")
+                || name.startsWith("server-wallpaper-")
+                || name.startsWith("generated-wallpaper-")
+                || name.startsWith("last_wallpaper_");
+            if (!keep && wallpaper) file.delete();
         }
     }
 }

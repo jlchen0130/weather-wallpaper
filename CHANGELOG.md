@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7
+
+- Phone storage now keeps only the latest dynamic wallpaper file.
+- Successful wallpaper saves clean old wallpaper cache files to avoid excessive local storage use.
+- Wallpaper writes now use a temporary file before replacing `last_wallpaper.png`.
+
 ## Server
 
 - Cloudflare Worker now keeps generated wallpapers and manifests for one day only.
