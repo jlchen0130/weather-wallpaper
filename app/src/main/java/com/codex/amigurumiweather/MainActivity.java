@@ -648,9 +648,15 @@ class SceneResolver {
         URL url = new URL(backend.trim() + separator + "lat=" + lat + "&lon=" + lon + "&units=metric");
         JSONObject root = new JSONObject(Http.get(url, null));
         JSONObject main = root.has("main") ? root.getJSONObject("main") : root;
-        String weatherMain = root.has("weather")
-            ? root.getJSONArray("weather").getJSONObject(0).getString("main")
-            : root.optString("weather", "Clouds");
+        Object weatherValue = root.opt("weather");
+        String weatherMain;
+        if (weatherValue instanceof org.json.JSONArray) {
+            weatherMain = ((org.json.JSONArray) weatherValue).getJSONObject(0).getString("main");
+        } else if (weatherValue instanceof String) {
+            weatherMain = (String) weatherValue;
+        } else {
+            weatherMain = "Clouds";
+        }
         return new WeatherInfo(
             WeatherMapper.normalize(weatherMain),
             (int) Math.round(main.optDouble("temp_min", main.optDouble("tempMin", 27))),

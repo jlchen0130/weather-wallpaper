@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4
+
+- Fixed weather backend parsing when the server returns simplified weather strings such as `Cloudy`.
+- App now supports both the server proxy format and the original OpenWeather `weather[]` array format.
+
 ## 2.3
 
 - Live Wallpaper no longer remains on the sparse loading screen when the server image is unavailable or slow.
