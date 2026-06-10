@@ -1,0 +1,14 @@
+{
+  "name": "amigurumi-weather-theme",
+  "version": "1.6.0",
+  "private": true,
+  "scripts": {
+    "cf:whoami": "wrangler whoami",
+    "cf:create-bucket": "wrangler r2 bucket create amigurumi-weather-wallpapers",
+    "cf:deploy": "wrangler deploy",
+    "cf:tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.20.0"
+  }
+}
