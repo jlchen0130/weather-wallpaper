@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2
+
+- Live Wallpaper no longer shows the old local default city artwork while waiting for a server wallpaper on fresh installs.
+- When no server image is cached yet, Live Wallpaper shows a clean loading wallpaper with the city label and retries every 30 seconds.
+- Added Cloudflare Cron tracking every 30 minutes for default cities Kaohsiung and Taipei.
+- Other GPS/custom locations remain request-driven and generate when a phone asks for that location.
+
 ## 2.1
 
 - Updated server-side AI prompt to place the city name in a pale, clean sky area.

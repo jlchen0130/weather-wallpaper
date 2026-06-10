@@ -10,11 +10,11 @@ Amigurumi Weather Theme 是 Android 動態桌布 App。v1.5 開始採用 server 
 ## 目前版本
 
 - App package: `com.codex.amigurumiweather`
-- Version: `2.1`
+- Version: `2.2`
 - Min SDK: 26
 - Target SDK: 36
-- 通用 APK: `outputs/AmigurumiWeatherTheme-v2.1-universal-debug.apk`
-- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v2.1-samsung-u23-debug.apk`
+- 通用 APK: `outputs/AmigurumiWeatherTheme-v2.2-universal-debug.apk`
+- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v2.2-samsung-u23-debug.apk`
 
 ## 手機端功能
 
@@ -48,6 +48,8 @@ backend/amigurumi-theme-server-worker.js
 - 依 `地點 + 天氣 + 天色` 建立 scene key。
 - 若 server 已有符合 scene key 的桌布，直接回傳既有檔案。
 - 若沒有符合桌布，就產生新圖並儲存。
+- Cloudflare Cron 會每 30 分鐘追蹤預設城市高雄與台北，依天氣與天色預先生圖。
+- 其他 GPS 或自訂地點仍會在手機提出需求時即時查詢/產圖。
 - Server 端產生的桌布與 manifest 只保留 1 日，超過保留期會自動清理。
 
 ## 檔名規則
@@ -77,6 +79,7 @@ OPENWEATHER_API_KEY=你的 OpenWeather API key
 OPENAI_API_KEY=你的 OpenAI API key
 OPENAI_IMAGE_MODEL=gpt-image-1
 WALLPAPER_RETENTION_HOURS=24
+PUBLIC_WORKER_ORIGIN=https://amigurumi-weather-theme-server.wemmei0130.workers.dev
 ```
 
 R2 binding：

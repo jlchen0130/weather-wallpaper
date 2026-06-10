@@ -1100,6 +1100,18 @@ class LocalWallpaperRenderer {
         drawCity(canvas, width, height, scene, frame);
     }
 
+    static void drawLoadingFrame(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
+        drawBackground(canvas, width, height, scene);
+        drawCityLabelOverlay(canvas, width, height, scene);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(Math.max(34f, width * 0.042f));
+        paint.setColor(textPaintColor(scene));
+        paint.setShadowLayer(8f, 0f, 2f, Color.argb(110, 38, 30, 24));
+        canvas.drawText("Downloading latest wallpaper...", width * 0.50f, height * 0.22f, paint);
+        drawWeatherOverlay(canvas, width, height, scene, frame);
+    }
+
     private static void drawBackground(Canvas canvas, int width, int height, WeatherScene scene) {
         int start;
         int end;

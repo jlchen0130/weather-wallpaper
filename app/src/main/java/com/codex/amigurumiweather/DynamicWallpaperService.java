@@ -79,7 +79,7 @@ public class DynamicWallpaperService extends WallpaperService {
                         LocalWallpaperRenderer.drawWeatherOverlay(canvas, width, height, scene, frame++);
                         LocalWallpaperRenderer.drawCityLabelOverlay(canvas, width, height, scene);
                     } else {
-                        LocalWallpaperRenderer.drawFrame(canvas, width, height, scene, frame++);
+                        LocalWallpaperRenderer.drawLoadingFrame(canvas, width, height, scene, frame++);
                     }
                 }
             } finally {
@@ -95,7 +95,7 @@ public class DynamicWallpaperService extends WallpaperService {
             long now = System.currentTimeMillis();
             SharedPreferences prefs = getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
             int minutes = AppConfig.parseMinutes(prefs.getString(AppConfig.KEY_UPDATE_MINUTES, "30"));
-            long interval = minutes * 60L * 1000L;
+            long interval = background == null ? 30L * 1000L : minutes * 60L * 1000L;
             if (!force && now - lastRefresh < interval) return;
             lastRefresh = now;
 

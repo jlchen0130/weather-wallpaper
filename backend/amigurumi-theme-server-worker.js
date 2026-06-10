@@ -33,6 +33,13 @@ export default {
         "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Afternoon"
       ]
     });
+  },
+
+  async scheduled(event, env, ctx) {
+    if (env.WALLPAPER_BUCKET) {
+      ctx.waitUntil(cleanupExpired(env));
+    }
+    ctx.waitUntil(refreshTrackedCities(env));
   }
 };
 
@@ -68,6 +75,11 @@ async function wallpaper(request, env) {
 
   const url = new URL(request.url);
   const scene = readScene(url);
+  const result = await ensureWallpaper(env, url, scene);
+  return json(result);
+}
+
+async function ensureWallpaper(env, url, scene) {
   const citySlug = slug(scene.city);
   const sceneKey = [citySlug, scene.country, scene.weather, scene.period, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
@@ -79,12 +91,12 @@ async function wallpaper(request, env) {
       await env.WALLPAPER_BUCKET.delete(manifestKey);
       if (existingImage) await env.WALLPAPER_BUCKET.delete(manifest.object_key);
     } else {
-      return json({
+      return {
         ...manifest,
         image_url: fileUrl(url, manifest.object_key),
         reused: true,
         expires_at: expiresAt(existingImage.uploaded, env)
-      });
+      };
     }
   }
 
@@ -123,12 +135,102 @@ async function wallpaper(request, env) {
     httpMetadata: { contentType: "application/json; charset=utf-8" }
   });
 
-  return json({
+  return {
     ...manifest,
     image_url: fileUrl(url, objectKey),
     reused: false,
     expires_at: expiresAt(new Date(), env)
-  });
+  };
+}
+
+async function refreshTrackedCities(env) {
+  if (!env.OPENWEATHER_API_KEY || !env.OPENAI_API_KEY || !env.WALLPAPER_BUCKET) return;
+  const cities = trackedCities(env);
+  const origin = env.PUBLIC_WORKER_ORIGIN || "https://amigurumi-weather-theme-server.wemmei0130.workers.dev";
+  const url = new URL(origin);
+  for (const city of cities) {
+    try {
+      const weatherInfo = await fetchWeatherByLocation(env, city.lat, city.lon);
+      const scene = {
+        city: city.city,
+        cityLocal: city.cityLocal || city.city,
+        country: city.country || "Taiwan",
+        date: todayForOffset(city.utcOffset || 8),
+        weather: weatherInfo.weather,
+        period: timePeriodForOffset(city.utcOffset || 8),
+        tempMin: String(Math.round(weatherInfo.temp_min)),
+        tempMax: String(Math.round(weatherInfo.temp_max)),
+        landmarks: city.landmarks || ["central station", "old town market", "city park"]
+      };
+      await ensureWallpaper(env, url, scene);
+    } catch (error) {
+      console.log(`tracked city refresh failed: ${city.city}: ${error.message}`);
+    }
+  }
+}
+
+async function fetchWeatherByLocation(env, lat, lon) {
+  const api = new URL("https://api.openweathermap.org/data/2.5/weather");
+  api.searchParams.set("lat", lat);
+  api.searchParams.set("lon", lon);
+  api.searchParams.set("units", "metric");
+  api.searchParams.set("appid", env.OPENWEATHER_API_KEY);
+  const response = await fetch(api);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.message || "OpenWeather error");
+  const main = body.weather?.[0]?.main || "Clouds";
+  return {
+    weather: WEATHER_MAP[main] || main,
+    temp_min: body.main?.temp_min ?? 27,
+    temp_max: body.main?.temp_max ?? 32
+  };
+}
+
+function trackedCities(env) {
+  if (env.TRACKED_CITIES) {
+    try {
+      return JSON.parse(env.TRACKED_CITIES);
+    } catch (error) {
+      console.log(`invalid TRACKED_CITIES: ${error.message}`);
+    }
+  }
+  return [
+    {
+      city: "Kaohsiung",
+      cityLocal: "Kaohsiung",
+      country: "Taiwan",
+      lat: 22.6273,
+      lon: 120.3014,
+      utcOffset: 8,
+      landmarks: ["85 Sky Tower", "Love River", "Pier-2 Art Center"]
+    },
+    {
+      city: "Taipei",
+      cityLocal: "Taipei",
+      country: "Taiwan",
+      lat: 25.0330,
+      lon: 121.5654,
+      utcOffset: 8,
+      landmarks: ["Taipei 101", "Ximending", "Raohe Night Market"]
+    }
+  ];
+}
+
+function todayForOffset(offset) {
+  return shiftedDate(offset).toISOString().slice(0, 10);
+}
+
+function timePeriodForOffset(offset) {
+  const hour = shiftedDate(offset).getUTCHours();
+  if (hour >= 5 && hour <= 10) return "Morning";
+  if (hour >= 11 && hour <= 16) return "Afternoon";
+  if (hour >= 17 && hour <= 18) return "Sunset";
+  if (hour >= 19 && hour <= 21) return "Evening";
+  return "Night";
+}
+
+function shiftedDate(offset) {
+  return new Date(Date.now() + offset * 60 * 60 * 1000);
 }
 
 async function serveFile(url, env) {
