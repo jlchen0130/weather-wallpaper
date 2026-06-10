@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0
+
+- Live Wallpaper now always draws the city label as a phone-side overlay on top of server wallpaper backgrounds.
+- This fixes generated dynamic wallpapers that missed the city name in the AI image.
+
 ## 1.9
 
 - Simplified app UI so editable settings only show location mode/custom city and language mode/custom language.

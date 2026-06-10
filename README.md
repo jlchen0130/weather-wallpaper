@@ -10,11 +10,11 @@ Amigurumi Weather Theme 是 Android 動態桌布 App。v1.5 開始採用 server 
 ## 目前版本
 
 - App package: `com.codex.amigurumiweather`
-- Version: `1.9`
+- Version: `2.0`
 - Min SDK: 26
 - Target SDK: 36
-- 通用 APK: `outputs/AmigurumiWeatherTheme-v1.9-universal-debug.apk`
-- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v1.9-samsung-u23-debug.apk`
+- 通用 APK: `outputs/AmigurumiWeatherTheme-v2.0-universal-debug.apk`
+- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v2.0-samsung-u23-debug.apk`
 
 ## 手機端功能
 
@@ -27,6 +27,7 @@ Amigurumi Weather Theme 是 Android 動態桌布 App。v1.5 開始採用 server 
 - 手機離線或 server 連線異常時，保留最後一張已下載的動態桌布，並在 App 顯示連線異常訊息。
 - 手機端只保留最新一張動態桌布檔，更新成功後會清理舊桌布暫存，避免佔用過多儲存空間。
 - 桌布留白處會顯示明顯但不衝突的地名；在台灣用本地地名，在外國用英文。
+- 動態桌布會由手機端固定疊加地名，即使 server 產生的背景漏掉地名也會顯示。
 - App 內 `Check app update` 會從 GitHub Releases 依手機型號下載合適 APK。
 - 若 GitHub 最新版本不高於目前安裝版本，`Check app update` 只會顯示已是最新版本，不會下載或開啟安裝流程。
 

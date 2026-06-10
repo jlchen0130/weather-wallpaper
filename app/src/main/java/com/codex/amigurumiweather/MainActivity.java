@@ -1095,7 +1095,7 @@ class LocalWallpaperRenderer {
     static void drawFrame(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
         drawBackground(canvas, width, height, scene);
         drawYarnSky(canvas, width, height, scene, frame);
-        drawCityLabel(canvas, width, height, scene);
+        drawCityLabelOverlay(canvas, width, height, scene);
         drawCity(canvas, width, height, scene, frame);
     }
 
@@ -1182,7 +1182,7 @@ class LocalWallpaperRenderer {
         drawPeople(canvas, height, frame);
     }
 
-    private static void drawCityLabel(Canvas canvas, int width, int height, WeatherScene scene) {
+    static void drawCityLabelOverlay(Canvas canvas, int width, int height, WeatherScene scene) {
         String label = "Taiwan".equals(scene.country)
             ? scene.cityLocal.replace(" City", "")
             : scene.cityEnglish;

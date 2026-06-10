@@ -77,6 +77,7 @@ public class DynamicWallpaperService extends WallpaperService {
                     if (background != null) {
                         drawCover(canvas, background, width, height);
                         LocalWallpaperRenderer.drawWeatherOverlay(canvas, width, height, scene, frame++);
+                        LocalWallpaperRenderer.drawCityLabelOverlay(canvas, width, height, scene);
                     } else {
                         LocalWallpaperRenderer.drawFrame(canvas, width, height, scene, frame++);
                     }
