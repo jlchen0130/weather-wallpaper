@@ -140,15 +140,6 @@ public class DynamicWallpaperService extends WallpaperService {
                 Bitmap cached = WallpaperStore.load(DynamicWallpaperService.this);
                 return cached != null ? cached : LocalWallpaperRenderer.render(next);
             }
-            String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
-            String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
-            if (apiKey != null && !apiKey.trim().isEmpty()) {
-                try {
-                    Bitmap generated = ImageGenerator.generate(apiKey.trim(), model, PromptBuilder.build(next));
-                    if (generated != null) return generated;
-                } catch (Exception ignored) {
-                }
-            }
             return LocalWallpaperRenderer.render(next);
         }
 

@@ -25,7 +25,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
-import android.util.Base64;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -41,12 +40,10 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -205,8 +202,6 @@ public class MainActivity extends Activity {
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(AppConfig.DEFAULT_UPDATE_MINUTES))
             .putString(AppConfig.KEY_WEATHER_BACKEND_URL, "")
             .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
-            .putString(AppConfig.KEY_OPENAI, "")
-            .putString(AppConfig.KEY_OPENAI_MODEL, AppConfig.DEFAULT_OPENAI_MODEL)
             .apply();
         Toast.makeText(this, "\u5df2\u5132\u5b58", Toast.LENGTH_SHORT).show();
     }
@@ -227,16 +222,10 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             try {
                 WeatherScene scene = SceneResolver.resolve(this);
-                String prompt = PromptBuilder.build(scene);
-                String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
-                String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, AppConfig.DEFAULT_OPENAI_MODEL);
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
                 if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
                     applyCachedWallpaper("Status: connection error. Keeping the last static wallpaper. " + ServerWallpaperClient.lastError(), true);
                     return;
-                }
-                if (bitmap == null && apiKey != null && !apiKey.trim().isEmpty()) {
-                    bitmap = ImageGenerator.generate(apiKey.trim(), model, prompt);
                 }
                 if (bitmap == null) bitmap = LocalWallpaperRenderer.render(scene);
                 WallpaperStore.save(this, bitmap);
@@ -349,12 +338,9 @@ public class MainActivity extends Activity {
 class AppConfig {
     static final String PREFS = "theme_config";
     static final String DEFAULT_THEME_SERVER_URL = "https://amigurumi-weather-theme-server.wemmei0130.workers.dev";
-    static final String DEFAULT_OPENAI_MODEL = "gpt-image-1.5";
     static final int DEFAULT_UPDATE_MINUTES = 30;
     static final String KEY_WEATHER_BACKEND_URL = "weather_backend_url";
     static final String KEY_THEME_SERVER_URL = "theme_server_url";
-    static final String KEY_OPENAI = "openai_key";
-    static final String KEY_OPENAI_MODEL = "openai_model";
     static final String KEY_USE_CUSTOM = "use_custom_location";
     static final String KEY_CUSTOM_CITY = "custom_city";
     static final String KEY_USE_CUSTOM_LANGUAGE = "use_custom_language";
@@ -561,16 +547,6 @@ class ServerWallpaperClient {
                 + "&landmarks=" + enc(join(scene.landmarks));
             JSONObject response = new JSONObject(Http.get(new URL(requestUrl), null));
             String fileName = response.optString("file_name", "");
-            String serverSceneKey = response.optString("scene_key", "");
-            Bitmap bundled = BundledWallpaper.loadIfServerIsOlder(context, scene, fileName, serverSceneKey);
-            if (bundled != null) {
-                WallpaperStore.save(context, bundled);
-                prefs.edit()
-                    .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
-                    .putString(AppConfig.KEY_LAST_SERVER_FILE, BundledWallpaper.KAOHSIUNG_LANDMARKS_FILE)
-                    .apply();
-                return bundled;
-            }
             String imageUrl = response.optString("image_url", "");
             Bitmap bitmap = null;
             if (!imageUrl.isEmpty()) {
@@ -588,15 +564,6 @@ class ServerWallpaperClient {
                 .apply();
             return bitmap;
         } catch (Exception error) {
-            Bitmap bundled = BundledWallpaper.loadFeatured(context, scene);
-            if (bundled != null) {
-                WallpaperStore.save(context, bundled);
-                context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE).edit()
-                    .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
-                    .putString(AppConfig.KEY_LAST_SERVER_FILE, BundledWallpaper.KAOHSIUNG_LANDMARKS_FILE)
-                    .apply();
-                return bundled;
-            }
             lastError = error.getMessage();
             return null;
         }
@@ -613,28 +580,6 @@ class ServerWallpaperClient {
             builder.append(values.get(i));
         }
         return builder.toString();
-    }
-}
-
-class BundledWallpaper {
-    static final String KAOHSIUNG_LANDMARKS_FILE = "bundled_kaohsiung_landmarks_v1.png";
-
-    static Bitmap loadIfServerIsOlder(Context context, WeatherScene scene, String fileName, String serverSceneKey) {
-        if (scene == null || scene.cityEnglish == null || !"Kaohsiung".equalsIgnoreCase(scene.cityEnglish.trim())) {
-            return null;
-        }
-        boolean oldServerImage = (serverSceneKey != null && serverSceneKey.contains("sky-city-label-v2"))
-            || "kaohsiung_20260610_003.png".equals(fileName);
-        if (!oldServerImage) return null;
-        return loadFeatured(context, scene);
-    }
-
-    static Bitmap loadFeatured(Context context, WeatherScene scene) {
-        if (scene == null || scene.cityEnglish == null || !"Kaohsiung".equalsIgnoreCase(scene.cityEnglish.trim())) {
-            return null;
-        }
-        int id = context.getResources().getIdentifier("kaohsiung_landmarks_v1", "drawable", context.getPackageName());
-        return id == 0 ? null : BitmapFactory.decodeResource(context.getResources(), id);
     }
 }
 
@@ -1093,42 +1038,6 @@ class PromptBuilder {
     }
 }
 
-class ImageGenerator {
-    static Bitmap generate(String apiKey, String model, String prompt) throws Exception {
-        JSONObject body = new JSONObject()
-            .put("model", model)
-            .put("prompt", prompt)
-            .put("size", "1024x1536")
-            .put("n", 1);
-
-        String json = Http.post(
-            new URL("https://api.openai.com/v1/images/generations"),
-            body.toString(),
-            singletonHeader("Authorization", "Bearer " + apiKey)
-        );
-        JSONObject item = new JSONObject(json).getJSONArray("data").getJSONObject(0);
-        String encoded = item.optString("b64_json");
-        if (encoded != null && !encoded.isEmpty()) {
-            byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
-            return BitmapFactory.decodeStream(new ByteArrayInputStream(bytes));
-        }
-        String imageUrl = item.optString("url");
-        if (imageUrl != null && !imageUrl.isEmpty()) {
-            HttpURLConnection connection = (HttpURLConnection) new URL(imageUrl).openConnection();
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
-            return BitmapFactory.decodeStream(new BufferedInputStream(connection.getInputStream()));
-        }
-        return null;
-    }
-
-    private static Map<String, String> singletonHeader(String name, String value) {
-        Map<String, String> headers = new HashMap<>();
-        headers.put(name, value);
-        return headers;
-    }
-}
-
 class Http {
     static String get(URL url, Map<String, String> headers) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -1158,22 +1067,6 @@ class Http {
             while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
             return output.toByteArray();
         }
-    }
-
-    static String post(URL url, String body, Map<String, String> headers) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("POST");
-        connection.setConnectTimeout(30000);
-        connection.setReadTimeout(120000);
-        connection.setDoOutput(true);
-        connection.setRequestProperty("Content-Type", "application/json");
-        for (Map.Entry<String, String> entry : headers.entrySet()) {
-            connection.setRequestProperty(entry.getKey(), entry.getValue());
-        }
-        try (OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream())) {
-            writer.write(body);
-        }
-        return read(connection);
     }
 
     private static String read(HttpURLConnection connection) throws Exception {
