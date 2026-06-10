@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1
+
+- Updated server-side AI prompt to place the city name in a pale, clean sky area.
+- Prompt now explicitly avoids overlapping the city label with buildings, people, clouds, rain, or lock-screen widgets.
+- Bumped server prompt version so existing same-scene images are regenerated with the new sky-label instruction.
+
 ## 2.0
 
 - Live Wallpaper now always draws the city label as a phone-side overlay on top of server wallpaper backgrounds.

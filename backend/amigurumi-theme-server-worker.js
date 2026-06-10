@@ -12,6 +12,7 @@ const WEATHER_MAP = {
   Dust: "Foggy",
   Sand: "Foggy"
 };
+const PROMPT_VERSION = "sky-city-label-v2";
 
 export default {
   async fetch(request, env, ctx) {
@@ -68,7 +69,7 @@ async function wallpaper(request, env) {
   const url = new URL(request.url);
   const scene = readScene(url);
   const citySlug = slug(scene.city);
-  const sceneKey = [citySlug, scene.country, scene.weather, scene.period].join("|");
+  const sceneKey = [citySlug, scene.country, scene.weather, scene.period, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
   const existing = await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
@@ -207,8 +208,10 @@ function buildPrompt(scene) {
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${scene.landmarks.join(", ")}.`,
     "All buildings, vehicles, people, shops, trees, and roads are handmade crochet toys.",
-    "Keep enough blank lock-screen space so phone time, date, and status widgets do not conflict.",
-    `Place one clear city name label in an open blank area: ${label}.`,
+    "Keep the upper sky area light, calm, and visually clean so phone time, date, and status widgets do not conflict.",
+    `Place one clear city name label in the pale open sky area: ${label}.`,
+    "The city label should look embroidered with yarn, large enough to read, centered or upper-center, and must not overlap buildings, people, clouds, rain, or lock-screen widgets.",
+    "Use a legible high-contrast but gentle yarn color that remains visible on the lighter sky without clashing with the crochet artwork.",
     isTaiwan ? "Use Traditional Chinese styling for local shop signs." : "Use English for the city name label.",
     "Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets.",
     "No extra readable text beyond the city name label."
