@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5
+
+- GPS reverse geocoding now uses Taiwan county/city level instead of district/township level.
+- Added Traditional Chinese and English mappings for major Taiwan cities so AI generation uses city-level prompts such as Kaohsiung.
+- Added landmark data for New Taipei, Taoyuan, Taichung, and Tainan.
+
 ## 2.4
 
 - Fixed weather backend parsing when the server returns simplified weather strings such as `Cloudy`.

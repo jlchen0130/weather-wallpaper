@@ -626,14 +626,30 @@ class SceneResolver {
             if (addresses != null && !addresses.isEmpty()) address = addresses.get(0);
         } catch (Exception ignored) {
         }
-        String country = address != null && address.getCountryName() != null ? address.getCountryName() : "Taiwan";
+        String country = normalizeCountry(address);
         String cityLocal = "Kaohsiung";
         if (address != null) {
-            if (address.getLocality() != null) cityLocal = address.getLocality();
-            else if (address.getSubAdminArea() != null) cityLocal = address.getSubAdminArea();
-            else if (address.getAdminArea() != null) cityLocal = address.getAdminArea();
+            if ("Taiwan".equals(country)) {
+                if (address.getAdminArea() != null) cityLocal = address.getAdminArea();
+                else if (address.getSubAdminArea() != null) cityLocal = address.getSubAdminArea();
+                else if (address.getLocality() != null) cityLocal = address.getLocality();
+            } else {
+                if (address.getLocality() != null) cityLocal = address.getLocality();
+                else if (address.getSubAdminArea() != null) cityLocal = address.getSubAdminArea();
+                else if (address.getAdminArea() != null) cityLocal = address.getAdminArea();
+            }
         }
         return new CityInfo(cityLocal, EnglishCityNames.toEnglish(cityLocal), country, location.getLatitude(), location.getLongitude());
+    }
+
+    private static String normalizeCountry(Address address) {
+        if (address == null) return "Taiwan";
+        String code = address.getCountryCode();
+        String name = address.getCountryName();
+        if ("TW".equalsIgnoreCase(code) || "Taiwan".equalsIgnoreCase(name) || "台灣".equals(name) || "臺灣".equals(name)) {
+            return "Taiwan";
+        }
+        return name != null && !name.trim().isEmpty() ? name : "Taiwan";
     }
 
     static WeatherInfo fetchWeather(Context context, double lat, double lon) throws Exception {
@@ -857,7 +873,16 @@ class CityDatabase {
 
     static {
         DATA.put("taipei", new CityInfo("Taipei", "Taipei", "Taiwan", 25.0330, 121.5654));
+        DATA.put("台北市", new CityInfo("台北市", "Taipei", "Taiwan", 25.0330, 121.5654));
+        DATA.put("臺北市", new CityInfo("臺北市", "Taipei", "Taiwan", 25.0330, 121.5654));
         DATA.put("kaohsiung", new CityInfo("Kaohsiung", "Kaohsiung", "Taiwan", 22.6273, 120.3014));
+        DATA.put("高雄市", new CityInfo("高雄市", "Kaohsiung", "Taiwan", 22.6273, 120.3014));
+        DATA.put("臺中市", new CityInfo("臺中市", "Taichung", "Taiwan", 24.1477, 120.6736));
+        DATA.put("台中市", new CityInfo("台中市", "Taichung", "Taiwan", 24.1477, 120.6736));
+        DATA.put("台南市", new CityInfo("台南市", "Tainan", "Taiwan", 22.9999, 120.2269));
+        DATA.put("臺南市", new CityInfo("臺南市", "Tainan", "Taiwan", 22.9999, 120.2269));
+        DATA.put("新北市", new CityInfo("新北市", "New Taipei", "Taiwan", 25.0169, 121.4628));
+        DATA.put("桃園市", new CityInfo("桃園市", "Taoyuan", "Taiwan", 24.9937, 121.3010));
         DATA.put("tokyo", new CityInfo("Tokyo", "Tokyo", "Japan", 35.6762, 139.6503));
         DATA.put("seoul", new CityInfo("Seoul", "Seoul", "South Korea", 37.5665, 126.9780));
         DATA.put("new york", new CityInfo("New York", "New York", "United States", 40.7128, -74.0060));
@@ -880,6 +905,10 @@ class LandmarkDatabase {
     static {
         DATA.put("Taipei", Arrays.asList("Taipei 101", "Ximending", "Raohe Night Market"));
         DATA.put("Kaohsiung", Arrays.asList("85 Sky Tower", "Love River", "Pier-2 Art Center"));
+        DATA.put("New Taipei", Arrays.asList("Tamsui Old Street", "Jiufen", "Bitan"));
+        DATA.put("Taoyuan", Arrays.asList("Daxi Old Street", "Shimen Reservoir", "Xpark"));
+        DATA.put("Taichung", Arrays.asList("National Taichung Theater", "Miyahara", "Fengjia Night Market"));
+        DATA.put("Tainan", Arrays.asList("Chihkan Tower", "Anping Old Fort", "Shennong Street"));
         DATA.put("Tokyo", Arrays.asList("Tokyo Tower", "Shibuya Crossing", "Sensoji Temple"));
         DATA.put("Seoul", Arrays.asList("N Seoul Tower", "Gyeongbokgung", "Myeongdong"));
         DATA.put("New York", Arrays.asList("Empire State Building", "Times Square", "Brooklyn Bridge"));
@@ -940,8 +969,17 @@ class EnglishCityNames {
     static {
         DATA.put("Taipei", "Taipei");
         DATA.put("Taipei City", "Taipei");
+        DATA.put("台北市", "Taipei");
+        DATA.put("臺北市", "Taipei");
         DATA.put("Kaohsiung", "Kaohsiung");
         DATA.put("Kaohsiung City", "Kaohsiung");
+        DATA.put("高雄市", "Kaohsiung");
+        DATA.put("台中市", "Taichung");
+        DATA.put("臺中市", "Taichung");
+        DATA.put("台南市", "Tainan");
+        DATA.put("臺南市", "Tainan");
+        DATA.put("新北市", "New Taipei");
+        DATA.put("桃園市", "Taoyuan");
         DATA.put("Tokyo", "Tokyo");
         DATA.put("Seoul", "Seoul");
         DATA.put("New York", "New York");
