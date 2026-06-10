@@ -113,12 +113,15 @@ public class DynamicWallpaperService extends WallpaperService {
                             background = generated;
                             WallpaperStore.save(DynamicWallpaperService.this, generated);
                             prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, newKey).apply();
+                        } else if (background == null) {
+                            background = LocalWallpaperRenderer.render(next);
                         }
                     }
                 } catch (Exception ignored) {
                     scene = SceneFactory.createFallback();
                     Bitmap latest = WallpaperStore.load(DynamicWallpaperService.this);
                     if (latest != null) background = latest;
+                    if (background == null) background = LocalWallpaperRenderer.render(scene);
                 }
             });
         }
@@ -127,7 +130,8 @@ public class DynamicWallpaperService extends WallpaperService {
             Bitmap server = ServerWallpaperClient.fetchOrCreate(DynamicWallpaperService.this, next);
             if (server != null) return server;
             if (ServerWallpaperClient.isConfigured(DynamicWallpaperService.this)) {
-                return WallpaperStore.load(DynamicWallpaperService.this);
+                Bitmap cached = WallpaperStore.load(DynamicWallpaperService.this);
+                return cached != null ? cached : LocalWallpaperRenderer.render(next);
             }
             String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
             String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");

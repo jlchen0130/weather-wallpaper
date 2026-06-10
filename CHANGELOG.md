@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3
+
+- Live Wallpaper no longer remains on the sparse loading screen when the server image is unavailable or slow.
+- When server download/generation is pending, the phone renders a complete local animated city wallpaper first and replaces it with the server AI image after download succeeds.
+- Server wallpaper requests now prefer returning the latest same-city wallpaper immediately and refresh the exact weather/time scene in the background.
+
 ## 2.2
 
 - Live Wallpaper no longer shows the old local default city artwork while waiting for a server wallpaper on fresh installs.

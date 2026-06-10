@@ -25,7 +25,7 @@ export default {
     if (url.searchParams.has("lat") && url.searchParams.has("lon") && !url.searchParams.has("city")) {
       return weather(request, env);
     }
-    if (url.searchParams.has("city")) return wallpaper(request, env);
+    if (url.searchParams.has("city")) return wallpaper(request, env, ctx);
     return json({
       service: "amigurumi-theme-server",
       routes: [
@@ -69,17 +69,17 @@ async function weather(request, env) {
   });
 }
 
-async function wallpaper(request, env) {
+async function wallpaper(request, env, ctx) {
   if (!env.WALLPAPER_BUCKET) return json({ error: "WALLPAPER_BUCKET R2 binding is not configured" }, 500);
   if (!env.OPENAI_API_KEY) return json({ error: "OPENAI_API_KEY is not configured" }, 500);
 
   const url = new URL(request.url);
   const scene = readScene(url);
-  const result = await ensureWallpaper(env, url, scene);
+  const result = await ensureWallpaper(env, url, scene, { allowLatest: true, ctx });
   return json(result);
 }
 
-async function ensureWallpaper(env, url, scene) {
+async function ensureWallpaper(env, url, scene, options = {}) {
   const citySlug = slug(scene.city);
   const sceneKey = [citySlug, scene.country, scene.weather, scene.period, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
@@ -100,6 +100,27 @@ async function ensureWallpaper(env, url, scene) {
     }
   }
 
+  if (options.allowLatest) {
+    const latest = await latestCityWallpaper(env, url, citySlug);
+    if (latest) {
+      if (options.ctx) {
+        options.ctx.waitUntil(createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey));
+      }
+      return {
+        ...latest,
+        scene_key: sceneKey,
+        requested_weather: scene.weather,
+        requested_period: scene.period,
+        reused: true,
+        pending_refresh: true
+      };
+    }
+  }
+
+  return createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey);
+}
+
+async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey) {
   const sequence = await nextSequence(env, citySlug, scene.date);
   const fileName = `${citySlug}_${scene.date.replaceAll("-", "")}_${sequence}.png`;
   const objectKey = `wallpapers/${citySlug}/${fileName}`;
@@ -140,6 +161,31 @@ async function ensureWallpaper(env, url, scene) {
     image_url: fileUrl(url, objectKey),
     reused: false,
     expires_at: expiresAt(new Date(), env)
+  };
+}
+
+async function latestCityWallpaper(env, url, citySlug) {
+  const listed = await env.WALLPAPER_BUCKET.list({
+    prefix: `wallpapers/${citySlug}/`,
+    limit: 100
+  });
+  const objects = (listed.objects || [])
+    .filter((object) => !isExpired(object.uploaded, env))
+    .sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime());
+  if (!objects.length) return null;
+  const object = objects[0];
+  const metadata = object.customMetadata || {};
+  const fileName = object.key.split("/").pop() || object.key;
+  return {
+    file_name: fileName,
+    object_key: object.key,
+    city: metadata.city || citySlug,
+    country: metadata.country || "",
+    weather: metadata.weather || "",
+    period: metadata.period || "",
+    date: metadata.date || "",
+    image_url: fileUrl(url, object.key),
+    expires_at: expiresAt(object.uploaded, env)
   };
 }
 
