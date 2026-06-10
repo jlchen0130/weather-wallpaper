@@ -16,6 +16,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -48,6 +49,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -66,6 +68,7 @@ public class MainActivity extends Activity {
     private TextView promptText;
     private ImageView preview;
     private EditText weatherBackendUrl;
+    private EditText themeServerUrl;
     private EditText openAiKey;
     private EditText openAiModel;
     private EditText customCity;
@@ -94,7 +97,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Static wallpaper plus animated Live Wallpaper. Weather key is kept on your backend.");
+        subtitle.setText("Server-generated wallpaper plus animated Live Wallpaper. Weather and image keys stay on your backend.");
         subtitle.setTextSize(14f);
         subtitle.setTextColor(Color.rgb(92, 74, 62));
         subtitle.setPadding(0, dp(6), 0, dp(14));
@@ -114,6 +117,7 @@ public class MainActivity extends Activity {
             updateMinutes.setText("30");
         }
         weatherBackendUrl = input("Weather backend URL", AppConfig.KEY_WEATHER_BACKEND_URL, false);
+        themeServerUrl = input("Theme server URL", AppConfig.KEY_THEME_SERVER_URL, false);
         openAiKey = input("OpenAI API Key", AppConfig.KEY_OPENAI, true);
         openAiModel = input("OpenAI image model", AppConfig.KEY_OPENAI_MODEL, false);
         if (openAiModel.getText().toString().trim().isEmpty()) {
@@ -123,6 +127,7 @@ public class MainActivity extends Activity {
         root.addView(customCity);
         root.addView(updateMinutes);
         root.addView(weatherBackendUrl);
+        root.addView(themeServerUrl);
         root.addView(openAiKey);
         root.addView(openAiModel);
 
@@ -208,6 +213,7 @@ public class MainActivity extends Activity {
             .putString(AppConfig.KEY_CUSTOM_CITY, customCity.getText().toString().trim())
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(minutes))
             .putString(AppConfig.KEY_WEATHER_BACKEND_URL, weatherBackendUrl.getText().toString().trim())
+            .putString(AppConfig.KEY_THEME_SERVER_URL, themeServerUrl.getText().toString().trim())
             .putString(AppConfig.KEY_OPENAI, openAiKey.getText().toString().trim())
             .putString(AppConfig.KEY_OPENAI_MODEL, model)
             .apply();
@@ -233,22 +239,18 @@ public class MainActivity extends Activity {
                 String prompt = PromptBuilder.build(scene);
                 String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
                 String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
-                Bitmap bitmap = LocalWallpaperRenderer.render(scene);
+                Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
+                if (bitmap == null && apiKey != null && !apiKey.trim().isEmpty()) {
+                    bitmap = ImageGenerator.generate(apiKey.trim(), model, prompt);
+                }
+                if (bitmap == null) bitmap = LocalWallpaperRenderer.render(scene);
                 WallpaperStore.save(this, bitmap);
                 Bitmap previewBitmap = bitmap;
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(previewBitmap, 360, 640, true));
                     promptText.setText(prompt);
-                    statusText.setText("Status: local preview ready. Generating AI image if API key is set...");
+                    statusText.setText("Status: server wallpaper ready. Applying to phone...");
                 });
-
-                if (apiKey != null && !apiKey.trim().isEmpty()) {
-                    Bitmap generated = ImageGenerator.generate(apiKey.trim(), model, prompt);
-                    if (generated != null) {
-                        bitmap = generated;
-                        WallpaperStore.save(this, bitmap);
-                    }
-                }
 
                 WallpaperManager.getInstance(this).setBitmap(bitmap);
                 prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey()).apply();
@@ -322,12 +324,14 @@ public class MainActivity extends Activity {
 class AppConfig {
     static final String PREFS = "theme_config";
     static final String KEY_WEATHER_BACKEND_URL = "weather_backend_url";
+    static final String KEY_THEME_SERVER_URL = "theme_server_url";
     static final String KEY_OPENAI = "openai_key";
     static final String KEY_OPENAI_MODEL = "openai_model";
     static final String KEY_USE_CUSTOM = "use_custom_location";
     static final String KEY_CUSTOM_CITY = "custom_city";
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
+    static final String KEY_LAST_SERVER_FILE = "last_server_file";
     static final String LAST_WALLPAPER_FILE = "last_wallpaper.png";
 
     static int parseMinutes(String raw) {
@@ -420,6 +424,57 @@ class WallpaperStore {
     }
 }
 
+class ServerWallpaperClient {
+    static Bitmap fetchOrCreate(Context context, WeatherScene scene) {
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+            String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+            if (base == null || base.trim().isEmpty()) return null;
+            String separator = base.contains("?") ? "&" : "?";
+            String requestUrl = base.trim()
+                + separator + "city=" + enc(scene.cityEnglish)
+                + "&cityLocal=" + enc(scene.cityLocal)
+                + "&country=" + enc(scene.country)
+                + "&date=" + enc(scene.date)
+                + "&weather=" + enc(scene.weather)
+                + "&period=" + enc(scene.timePeriod)
+                + "&tempMin=" + scene.tempMin
+                + "&tempMax=" + scene.tempMax
+                + "&landmarks=" + enc(join(scene.landmarks));
+            JSONObject response = new JSONObject(Http.get(new URL(requestUrl), null));
+            String fileName = response.optString("file_name", "");
+            String imageUrl = response.optString("image_url", "");
+            Bitmap bitmap = null;
+            if (!imageUrl.isEmpty()) {
+                byte[] bytes = Http.getBytes(new URL(imageUrl), null);
+                bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            }
+            if (bitmap == null) return null;
+            WallpaperStore.save(context, bitmap);
+            prefs.edit()
+                .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
+                .putString(AppConfig.KEY_LAST_SERVER_FILE, fileName)
+                .apply();
+            return bitmap;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String enc(String value) throws Exception {
+        return URLEncoder.encode(value == null ? "" : value, "UTF-8");
+    }
+
+    private static String join(List<String> values) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) builder.append("|");
+            builder.append(values.get(i));
+        }
+        return builder.toString();
+    }
+}
+
 class SceneResolver {
     static WeatherScene resolve(Context context) throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
@@ -474,6 +529,9 @@ class SceneResolver {
     static WeatherInfo fetchWeather(Context context, double lat, double lon) throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         String backend = prefs.getString(AppConfig.KEY_WEATHER_BACKEND_URL, "");
+        if (backend == null || backend.trim().isEmpty()) {
+            backend = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+        }
         if (backend == null || backend.trim().isEmpty()) return new WeatherInfo("Cloudy", 27, 32);
         String separator = backend.contains("?") ? "&" : "?";
         URL url = new URL(backend.trim() + separator + "lat=" + lat + "&lon=" + lon + "&units=metric");
@@ -770,10 +828,11 @@ class PromptBuilder {
             + weather.effect + ".\n\n"
             + Rules.timeTemplate(scene.timePeriod) + ".\n\n"
             + "Cute Amigurumi people walking and chatting.\n\n"
-            + "Do not draw phone UI, clock, date, temperature text, status bar, widgets, app labels, or readable overlay text.\n\n"
-            + "Leave the upper 25 percent visually clean so the Android lock screen can show its built-in clock and date.\n\n"
+            + "Place one clear city name label in an open blank area, using English outside Taiwan and local text in Taiwan.\n\n"
+            + "Do not draw phone UI, clock, date, temperature text, status bar, widgets, or app labels.\n\n"
+            + "Leave enough upper blank space so the Android lock screen can show its built-in clock and date without conflict.\n\n"
             + "Crochet " + scene.weather.toLowerCase(Locale.US) + " weather icon.\n\n"
-            + "No text at top or bottom.\n\n"
+            + "No extra readable text beyond the city name.\n\n"
             + "9:16 portrait wallpaper.";
     }
 }
@@ -825,6 +884,26 @@ class Http {
         return read(connection);
     }
 
+    static byte[] getBytes(URL url, Map<String, String> headers) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(120000);
+        if (headers != null) for (Map.Entry<String, String> entry : headers.entrySet()) {
+            connection.setRequestProperty(entry.getKey(), entry.getValue());
+        }
+        int code = connection.getResponseCode();
+        if (code < 200 || code > 299) {
+            throw new IllegalStateException("HTTP " + code);
+        }
+        try (BufferedInputStream input = new BufferedInputStream(connection.getInputStream());
+             java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            return output.toByteArray();
+        }
+    }
+
     static String post(URL url, String body, Map<String, String> headers) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("POST");
@@ -871,6 +950,7 @@ class LocalWallpaperRenderer {
     static void drawFrame(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
         drawBackground(canvas, width, height, scene);
         drawYarnSky(canvas, width, height, scene, frame);
+        drawCityLabel(canvas, width, height, scene);
         drawCity(canvas, width, height, scene, frame);
     }
 
@@ -955,6 +1035,34 @@ class LocalWallpaperRenderer {
         paint.setColor(Color.rgb(230, 215, 188));
         canvas.drawCircle(width * 0.50f, ground - 560f, 54f, paint);
         drawPeople(canvas, height, frame);
+    }
+
+    private static void drawCityLabel(Canvas canvas, int width, int height, WeatherScene scene) {
+        String label = "Taiwan".equals(scene.country)
+            ? scene.cityLocal.replace(" City", "")
+            : scene.cityEnglish;
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(Math.max(62f, width * 0.085f));
+        paint.setColor(textPaintColor(scene));
+        paint.setShadowLayer(12f, 0f, 3f, Color.argb(135, 38, 30, 24));
+        Paint.FontMetrics metrics = paint.getFontMetrics();
+        float y = height * 0.14f - (metrics.ascent + metrics.descent) / 2f;
+        canvas.drawText(label, width * 0.50f, y, paint);
+    }
+
+    private static int textPaintColor(WeatherScene scene) {
+        if ("Night".equals(scene.timePeriod) || "Rainy".equals(scene.weather)) {
+            return Color.rgb(255, 247, 224);
+        }
+        if ("Sunset".equals(scene.timePeriod)) {
+            return Color.rgb(113, 55, 25);
+        }
+        if ("Sunny".equals(scene.weather)) {
+            return Color.rgb(93, 58, 39);
+        }
+        return Color.rgb(58, 58, 58);
     }
 
     private static void drawYarnLines(Canvas canvas, RectF rect) {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5
+
+- Added a server/mobile architecture for wallpaper generation.
+- Added `Theme server URL` so the phone can request, download, and apply server-generated wallpapers.
+- Added Cloudflare Worker theme server example with OpenWeather proxy, OpenAI image generation, R2 storage, scene manifests, and `city_YYYYMMDD_VVV.png` file naming.
+- Live Wallpaper now tries the server wallpaper first, then falls back to phone-side generation.
+- Added visible city name labeling in blank wallpaper space, using local Taiwan names and English names outside Taiwan.
+
 ## 1.4
 
 - Added Samsung U23/S23-targeted APK asset naming.

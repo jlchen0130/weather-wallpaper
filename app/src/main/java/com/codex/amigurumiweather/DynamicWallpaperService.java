@@ -121,6 +121,8 @@ public class DynamicWallpaperService extends WallpaperService {
         }
 
         private Bitmap generateBackground(WeatherScene next, SharedPreferences prefs) {
+            Bitmap server = ServerWallpaperClient.fetchOrCreate(DynamicWallpaperService.this, next);
+            if (server != null) return server;
             String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
             String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
             if (apiKey != null && !apiKey.trim().isEmpty()) {
