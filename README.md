@@ -10,17 +10,18 @@ Amigurumi Weather Theme 是 Android 動態桌布 App。v1.5 開始採用 server 
 ## 目前版本
 
 - App package: `com.codex.amigurumiweather`
-- Version: `1.8`
+- Version: `1.9`
 - Min SDK: 26
 - Target SDK: 36
-- 通用 APK: `outputs/AmigurumiWeatherTheme-v1.8-universal-debug.apk`
-- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v1.8-samsung-u23-debug.apk`
+- 通用 APK: `outputs/AmigurumiWeatherTheme-v1.9-universal-debug.apk`
+- Samsung U23/S23 APK: `outputs/AmigurumiWeatherTheme-v1.9-samsung-u23-debug.apk`
 
 ## 手機端功能
 
 - 可使用 GPS 自動定位，也可手動指定城市。
-- 新增 `Theme server URL`，手機端會向此 server 查詢或建立桌布。
-- 沒有獨立填 `Weather backend URL` 時，會共用 `Theme server URL` 查天氣。
+- App 畫面只保留地點設定、語言設定、桌布操作、更新按鈕與版本資訊。
+- Theme server、天氣 API、OpenAI、model、更新間隔等參數都改為隱藏預設值。
+- 手機端會用隱藏預設 server 查詢或建立桌布。
 - 手機端偵測 server 有新桌布時會下載、儲存並套用。
 - Live Wallpaper 會使用 server 回傳的背景圖，再依天氣疊加動態雨、雲、霧等效果。
 - 手機離線或 server 連線異常時，保留最後一張已下載的動態桌布，並在 App 顯示連線異常訊息。
@@ -116,11 +117,10 @@ https://your-worker.example.workers.dev?city=Kaohsiung&country=Taiwan&date=2026-
 1. 安裝 APK。
 2. 開啟 App。
 3. 使用 GPS 自動定位，或勾選 `Use custom city instead of GPS` 並輸入城市。
-4. 在 `Theme server URL` 輸入你的 Worker URL。
-5. 設定 `Live update interval minutes`，例如 `30`。
-6. 點選 `Set static wallpaper` 下載或建立 server 桌布並套用。
-7. 點選 `Open animated Live Wallpaper` 套用動態桌布。
-8. 點選 `Check app update` 從 GitHub Releases 檢查新版 APK。
+4. 選擇語言設定：自動偵測系統預設，或勾選自定義語種。
+5. 點選 `設定靜態桌布` 下載或建立 server 桌布並套用。
+6. 點選 `開啟動態桌布` 套用動態桌布。
+7. 點選 `更新 App` 從 GitHub Releases 檢查新版 APK。
 
 ## 重新生成規則
 

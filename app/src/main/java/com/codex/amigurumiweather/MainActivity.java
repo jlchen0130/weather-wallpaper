@@ -65,15 +65,11 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private SharedPreferences prefs;
     private TextView statusText;
-    private TextView promptText;
     private ImageView preview;
-    private EditText weatherBackendUrl;
-    private EditText themeServerUrl;
-    private EditText openAiKey;
-    private EditText openAiModel;
     private EditText customCity;
-    private EditText updateMinutes;
     private CheckBox useCustomLocation;
+    private CheckBox useCustomLanguage;
+    private EditText customLanguage;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -97,39 +93,33 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Server-generated wallpaper plus animated Live Wallpaper. Weather and image keys stay on your backend.");
+        subtitle.setText("\u81ea\u52d5\u4f9d\u5730\u9ede\u3001\u5929\u6c23\u8207\u5929\u8272\u66f4\u65b0\u52d5\u614b\u684c\u5e03\u3002API \u8207\u4f3a\u670d\u5668\u8a2d\u5b9a\u5df2\u96b1\u85cf\u3002");
         subtitle.setTextSize(14f);
         subtitle.setTextColor(Color.rgb(92, 74, 62));
         subtitle.setPadding(0, dp(6), 0, dp(14));
         root.addView(subtitle);
 
         useCustomLocation = new CheckBox(this);
-        useCustomLocation.setText("Use custom city instead of GPS");
+        useCustomLocation.setText("\u5730\u9ede\uff1a\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS \u5b9a\u4f4d");
         useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
         root.addView(useCustomLocation);
 
-        customCity = input("Custom city: Kaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
+        customCity = input("\u81ea\u8a02\u5730\u9ede\uff1aKaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
         if (customCity.getText().toString().trim().isEmpty()) {
             customCity.setText("Kaohsiung");
         }
-        updateMinutes = input("Live update interval minutes", AppConfig.KEY_UPDATE_MINUTES, false);
-        if (updateMinutes.getText().toString().trim().isEmpty()) {
-            updateMinutes.setText("30");
-        }
-        weatherBackendUrl = input("Weather backend URL", AppConfig.KEY_WEATHER_BACKEND_URL, false);
-        themeServerUrl = input("Theme server URL", AppConfig.KEY_THEME_SERVER_URL, false);
-        openAiKey = input("OpenAI API Key", AppConfig.KEY_OPENAI, true);
-        openAiModel = input("OpenAI image model", AppConfig.KEY_OPENAI_MODEL, false);
-        if (openAiModel.getText().toString().trim().isEmpty()) {
-            openAiModel.setText("gpt-image-1.5");
-        }
-
         root.addView(customCity);
-        root.addView(updateMinutes);
-        root.addView(weatherBackendUrl);
-        root.addView(themeServerUrl);
-        root.addView(openAiKey);
-        root.addView(openAiModel);
+
+        useCustomLanguage = new CheckBox(this);
+        useCustomLanguage.setText("\u8a9e\u8a00\u8a2d\u5b9a\uff1a\u4f7f\u7528\u81ea\u5b9a\u7fa9\u8a9e\u7a2e\uff0c\u4e0d\u81ea\u52d5\u5075\u6e2c\u7cfb\u7d71\u9810\u8a2d");
+        useCustomLanguage.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, false));
+        root.addView(useCustomLanguage);
+
+        customLanguage = input("\u81ea\u5b9a\u7fa9\u8a9e\u7a2e\uff1aTraditional Chinese / English / Japanese", AppConfig.KEY_CUSTOM_LANGUAGE, false);
+        if (customLanguage.getText().toString().trim().isEmpty()) {
+            customLanguage.setText("Traditional Chinese");
+        }
+        root.addView(customLanguage);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -137,14 +127,14 @@ public class MainActivity extends Activity {
         row.setPadding(0, dp(10), 0, dp(10));
 
         Button save = new Button(this);
-        save.setText("Save");
+        save.setText("\u5132\u5b58");
         save.setOnClickListener(v -> saveSettings());
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
         saveParams.setMarginEnd(dp(8));
         row.addView(save, saveParams);
 
         Button generate = new Button(this);
-        generate.setText("Set static wallpaper");
+        generate.setText("\u8a2d\u5b9a\u975c\u614b\u684c\u5e03");
         generate.setOnClickListener(v -> {
             saveSettings();
             generateAndApplyWallpaper();
@@ -153,7 +143,7 @@ public class MainActivity extends Activity {
         root.addView(row);
 
         Button live = new Button(this);
-        live.setText("Open animated Live Wallpaper");
+        live.setText("\u958b\u555f\u52d5\u614b\u684c\u5e03");
         live.setOnClickListener(v -> {
             saveSettings();
             openLiveWallpaperPicker();
@@ -161,12 +151,20 @@ public class MainActivity extends Activity {
         root.addView(live, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
 
         Button update = new Button(this);
-        update.setText("Check app update");
+        update.setText("\u66f4\u65b0 App");
         update.setOnClickListener(v -> {
             saveSettings();
             checkAndDownloadUpdate();
         });
         root.addView(update, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        TextView version = new TextView(this);
+        version.setText("App \u7248\u672c\uff1a" + AppUpdater.currentVersionName(this));
+        version.setTextSize(13f);
+        version.setTextColor(Color.rgb(92, 74, 62));
+        version.setGravity(Gravity.CENTER);
+        version.setPadding(0, dp(6), 0, dp(8));
+        root.addView(version);
 
         statusText = new TextView(this);
         statusText.setText("Status: ready");
@@ -180,12 +178,6 @@ public class MainActivity extends Activity {
         preview.setAdjustViewBounds(true);
         preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(preview, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(430)));
-
-        promptText = new TextView(this);
-        promptText.setTextSize(13f);
-        promptText.setTextColor(Color.rgb(65, 45, 34));
-        promptText.setPadding(0, dp(16), 0, 0);
-        root.addView(promptText);
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
@@ -205,20 +197,18 @@ public class MainActivity extends Activity {
     }
 
     private void saveSettings() {
-        String model = openAiModel.getText().toString().trim();
-        if (model.isEmpty()) model = "gpt-image-1.5";
-        int minutes = AppConfig.parseMinutes(updateMinutes.getText().toString());
         prefs.edit()
             .putBoolean(AppConfig.KEY_USE_CUSTOM, useCustomLocation.isChecked())
             .putString(AppConfig.KEY_CUSTOM_CITY, customCity.getText().toString().trim())
-            .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(minutes))
-            .putString(AppConfig.KEY_WEATHER_BACKEND_URL, weatherBackendUrl.getText().toString().trim())
-            .putString(AppConfig.KEY_THEME_SERVER_URL, themeServerUrl.getText().toString().trim())
-            .putString(AppConfig.KEY_OPENAI, openAiKey.getText().toString().trim())
-            .putString(AppConfig.KEY_OPENAI_MODEL, model)
+            .putBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, useCustomLanguage.isChecked())
+            .putString(AppConfig.KEY_CUSTOM_LANGUAGE, customLanguage.getText().toString().trim())
+            .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(AppConfig.DEFAULT_UPDATE_MINUTES))
+            .putString(AppConfig.KEY_WEATHER_BACKEND_URL, "")
+            .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
+            .putString(AppConfig.KEY_OPENAI, "")
+            .putString(AppConfig.KEY_OPENAI_MODEL, AppConfig.DEFAULT_OPENAI_MODEL)
             .apply();
-        updateMinutes.setText(Integer.toString(minutes));
-        Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "\u5df2\u5132\u5b58", Toast.LENGTH_SHORT).show();
     }
 
     private void requestLocationPermissionIfNeeded() {
@@ -238,7 +228,7 @@ public class MainActivity extends Activity {
                 WeatherScene scene = SceneResolver.resolve(this);
                 String prompt = PromptBuilder.build(scene);
                 String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
-                String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
+                String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, AppConfig.DEFAULT_OPENAI_MODEL);
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
                 if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
                     applyCachedWallpaper("Status: connection error. Keeping the last dynamic wallpaper. " + ServerWallpaperClient.lastError());
@@ -252,7 +242,6 @@ public class MainActivity extends Activity {
                 Bitmap previewBitmap = bitmap;
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(previewBitmap, 360, 640, true));
-                    promptText.setText(prompt);
                     statusText.setText("Status: server wallpaper ready. Applying to phone...");
                 });
 
@@ -261,7 +250,6 @@ public class MainActivity extends Activity {
                 Bitmap finalBitmap = bitmap;
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(finalBitmap, 360, 640, true));
-                    promptText.setText(prompt);
                     statusText.setText("Status: wallpaper set for " + scene.cityEnglish + ", " + scene.weather + ", " + scene.tempMin + "C~" + scene.tempMax + "C.");
                 });
             } catch (Exception error) {
@@ -277,7 +265,6 @@ public class MainActivity extends Activity {
                     }
                     runOnUiThread(() -> {
                         preview.setImageBitmap(Bitmap.createScaledBitmap(bitmap, 360, 640, true));
-                        promptText.setText(PromptBuilder.build(scene));
                         statusText.setText("Status: fallback wallpaper. " + error.getMessage());
                     });
                 }
@@ -297,7 +284,6 @@ public class MainActivity extends Activity {
         }
         runOnUiThread(() -> {
             preview.setImageBitmap(Bitmap.createScaledBitmap(cached, 360, 640, true));
-            promptText.setText("");
             statusText.setText(message);
         });
     }
@@ -353,12 +339,17 @@ public class MainActivity extends Activity {
 
 class AppConfig {
     static final String PREFS = "theme_config";
+    static final String DEFAULT_THEME_SERVER_URL = "https://amigurumi-weather-theme-server.wemmei0130.workers.dev";
+    static final String DEFAULT_OPENAI_MODEL = "gpt-image-1.5";
+    static final int DEFAULT_UPDATE_MINUTES = 30;
     static final String KEY_WEATHER_BACKEND_URL = "weather_backend_url";
     static final String KEY_THEME_SERVER_URL = "theme_server_url";
     static final String KEY_OPENAI = "openai_key";
     static final String KEY_OPENAI_MODEL = "openai_model";
     static final String KEY_USE_CUSTOM = "use_custom_location";
     static final String KEY_CUSTOM_CITY = "custom_city";
+    static final String KEY_USE_CUSTOM_LANGUAGE = "use_custom_language";
+    static final String KEY_CUSTOM_LANGUAGE = "custom_language";
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
@@ -529,7 +520,8 @@ class ServerWallpaperClient {
 
     static boolean isConfigured(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-        String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+        String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL);
+        if (base == null || base.trim().isEmpty()) base = AppConfig.DEFAULT_THEME_SERVER_URL;
         return base != null && !base.trim().isEmpty();
     }
 
@@ -541,7 +533,8 @@ class ServerWallpaperClient {
         try {
             lastError = "";
             SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-            String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+            String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL);
+            if (base == null || base.trim().isEmpty()) base = AppConfig.DEFAULT_THEME_SERVER_URL;
             if (base == null || base.trim().isEmpty()) return null;
             String separator = base.contains("?") ? "&" : "?";
             String requestUrl = base.trim()
@@ -597,12 +590,12 @@ class SceneResolver {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         if (prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false)) {
             CityInfo city = CityDatabase.forName(prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung"));
-            return SceneFactory.create(city, fetchWeather(context, city.latitude, city.longitude));
+            return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, city.latitude, city.longitude)));
         }
 
         Location location = findBestLocation(context);
         CityInfo city = reverseGeocode(context, location);
-        return SceneFactory.create(city, fetchWeather(context, location.getLatitude(), location.getLongitude()));
+        return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, location.getLatitude(), location.getLongitude())));
     }
 
     private static Location findBestLocation(Context context) {
@@ -647,8 +640,9 @@ class SceneResolver {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         String backend = prefs.getString(AppConfig.KEY_WEATHER_BACKEND_URL, "");
         if (backend == null || backend.trim().isEmpty()) {
-            backend = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+            backend = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL);
         }
+        if (backend == null || backend.trim().isEmpty()) backend = AppConfig.DEFAULT_THEME_SERVER_URL;
         if (backend == null || backend.trim().isEmpty()) return new WeatherInfo("Cloudy", 27, 32);
         String separator = backend.contains("?") ? "&" : "?";
         URL url = new URL(backend.trim() + separator + "lat=" + lat + "&lon=" + lon + "&units=metric");
@@ -662,6 +656,15 @@ class SceneResolver {
             (int) Math.round(main.optDouble("temp_min", main.optDouble("tempMin", 27))),
             (int) Math.round(main.optDouble("temp_max", main.optDouble("tempMax", 32)))
         );
+    }
+
+    private static WeatherScene applyLanguage(Context context, WeatherScene scene) {
+        SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+        String language = prefs.getBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, false)
+            ? prefs.getString(AppConfig.KEY_CUSTOM_LANGUAGE, scene.language)
+            : LanguageRules.forSystem(context);
+        if (language == null || language.trim().isEmpty()) language = scene.language;
+        return scene.withLanguage(language.trim());
     }
 }
 
@@ -695,6 +698,11 @@ class WeatherScene {
 
     String sceneKey() {
         return cityEnglish + "|" + country + "|" + weather + "|" + timePeriod;
+    }
+
+    WeatherScene withLanguage(String value) {
+        return new WeatherScene(cityLocal, cityEnglish, country, date, time, weather,
+            tempMin, tempMax, timePeriod, landmarks, value);
     }
 }
 
@@ -897,6 +905,26 @@ class LanguageRules {
     static String forCountry(String country) {
         String language = DATA.get(country);
         return language != null ? language : "English";
+    }
+
+    static String forSystem(Context context) {
+        Locale locale;
+        if (Build.VERSION.SDK_INT >= 24) {
+            locale = context.getResources().getConfiguration().getLocales().get(0);
+        } else {
+            locale = context.getResources().getConfiguration().locale;
+        }
+        String language = locale.getLanguage();
+        String country = locale.getCountry();
+        if ("zh".equals(language) && ("TW".equals(country) || "HK".equals(country) || "MO".equals(country))) {
+            return "Traditional Chinese";
+        }
+        if ("zh".equals(language)) return "Simplified Chinese";
+        if ("ja".equals(language)) return "Japanese";
+        if ("ko".equals(language)) return "Korean";
+        if ("fr".equals(language)) return "French";
+        if ("de".equals(language)) return "German";
+        return "English";
     }
 }
 

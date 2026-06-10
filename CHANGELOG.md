@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9
+
+- Simplified app UI so editable settings only show location mode/custom city and language mode/custom language.
+- Hid theme server, weather backend, OpenAI key, model, and update interval fields behind defaults.
+- Added app version text under the update button.
+- Removed generated prompt text from the visible app screen.
+
 ## 1.8
 
 - `Check app update` now compares the latest GitHub Release version with the installed app version.
