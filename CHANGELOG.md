@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6
+
+- Offline mode now keeps the last downloaded dynamic wallpaper instead of generating a new fallback image.
+- App shows a connection error message when the theme server or weather server cannot be reached.
+- Live Wallpaper preserves the current background when server refresh fails.
+
 ## 1.5
 
 - Added a server/mobile architecture for wallpaper generation.

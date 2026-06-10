@@ -240,6 +240,10 @@ public class MainActivity extends Activity {
                 String apiKey = prefs.getString(AppConfig.KEY_OPENAI, "");
                 String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, "gpt-image-1.5");
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
+                if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
+                    applyCachedWallpaper("Status: connection error. Keeping the last dynamic wallpaper. " + ServerWallpaperClient.lastError());
+                    return;
+                }
                 if (bitmap == null && apiKey != null && !apiKey.trim().isEmpty()) {
                     bitmap = ImageGenerator.generate(apiKey.trim(), model, prompt);
                 }
@@ -261,19 +265,40 @@ public class MainActivity extends Activity {
                     statusText.setText("Status: wallpaper set for " + scene.cityEnglish + ", " + scene.weather + ", " + scene.tempMin + "C~" + scene.tempMax + "C.");
                 });
             } catch (Exception error) {
-                WeatherScene scene = SceneFactory.createFallback();
-                Bitmap bitmap = LocalWallpaperRenderer.render(scene);
-                try {
-                    WallpaperStore.save(this, bitmap);
-                    WallpaperManager.getInstance(this).setBitmap(bitmap);
-                } catch (Exception ignored) {
+                if (ServerWallpaperClient.isConfigured(this)) {
+                    applyCachedWallpaper("Status: connection error. Keeping the last dynamic wallpaper. " + error.getMessage());
+                } else {
+                    WeatherScene scene = SceneFactory.createFallback();
+                    Bitmap bitmap = LocalWallpaperRenderer.render(scene);
+                    try {
+                        WallpaperStore.save(this, bitmap);
+                        WallpaperManager.getInstance(this).setBitmap(bitmap);
+                    } catch (Exception ignored) {
+                    }
+                    runOnUiThread(() -> {
+                        preview.setImageBitmap(Bitmap.createScaledBitmap(bitmap, 360, 640, true));
+                        promptText.setText(PromptBuilder.build(scene));
+                        statusText.setText("Status: fallback wallpaper. " + error.getMessage());
+                    });
                 }
-                runOnUiThread(() -> {
-                    preview.setImageBitmap(Bitmap.createScaledBitmap(bitmap, 360, 640, true));
-                    promptText.setText(PromptBuilder.build(scene));
-                    statusText.setText("Status: fallback wallpaper. " + error.getMessage());
-                });
             }
+        });
+    }
+
+    private void applyCachedWallpaper(String message) {
+        Bitmap cached = WallpaperStore.load(this);
+        if (cached == null) {
+            runOnUiThread(() -> statusText.setText(message + " No cached wallpaper found yet."));
+            return;
+        }
+        try {
+            WallpaperManager.getInstance(this).setBitmap(cached);
+        } catch (Exception ignored) {
+        }
+        runOnUiThread(() -> {
+            preview.setImageBitmap(Bitmap.createScaledBitmap(cached, 360, 640, true));
+            promptText.setText("");
+            statusText.setText(message);
         });
     }
 
@@ -425,8 +450,21 @@ class WallpaperStore {
 }
 
 class ServerWallpaperClient {
+    private static String lastError = "";
+
+    static boolean isConfigured(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+        String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
+        return base != null && !base.trim().isEmpty();
+    }
+
+    static String lastError() {
+        return lastError == null || lastError.isEmpty() ? "Server unavailable." : lastError;
+    }
+
     static Bitmap fetchOrCreate(Context context, WeatherScene scene) {
         try {
+            lastError = "";
             SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
             String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, "");
             if (base == null || base.trim().isEmpty()) return null;
@@ -449,14 +487,18 @@ class ServerWallpaperClient {
                 byte[] bytes = Http.getBytes(new URL(imageUrl), null);
                 bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
             }
-            if (bitmap == null) return null;
+            if (bitmap == null) {
+                lastError = "Server returned no image.";
+                return null;
+            }
             WallpaperStore.save(context, bitmap);
             prefs.edit()
                 .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
                 .putString(AppConfig.KEY_LAST_SERVER_FILE, fileName)
                 .apply();
             return bitmap;
-        } catch (Exception ignored) {
+        } catch (Exception error) {
+            lastError = error.getMessage();
             return null;
         }
     }

@@ -2,12 +2,12 @@
 
 ## Amigurumi Weather Theme 繁體中文說明
 
-v1.5 已改為 server 與手機端架構。Server 端會根據地點、天氣、天色判斷是否已有可用桌布；若沒有，會使用當地天氣與景點產生新的 Amigurumi 動態桌布背景。手機端會依地區下載相對桌布並套用。
+v1.6 使用 server 與手機端架構。Server 端會根據地點、天氣、天色判斷是否已有可用桌布；若沒有，會使用當地天氣與景點產生新的 Amigurumi 動態桌布背景。手機端會依地區下載相對桌布並套用。手機離線或 server 連線異常時，會保留最後一張已下載的動態桌布。
 
 ## APK
 
-- 通用版：`outputs/AmigurumiWeatherTheme-v1.5-universal-debug.apk`
-- Samsung U23/S23 版：`outputs/AmigurumiWeatherTheme-v1.5-samsung-u23-debug.apk`
+- 通用版：`outputs/AmigurumiWeatherTheme-v1.6-universal-debug.apk`
+- Samsung U23/S23 版：`outputs/AmigurumiWeatherTheme-v1.6-samsung-u23-debug.apk`
 
 ## 手機端
 
@@ -17,6 +17,7 @@ v1.5 已改為 server 與手機端架構。Server 端會根據地點、天氣、
 4. Server 有圖就下載既有圖。
 5. Server 沒圖就等待 server 產生新圖。
 6. 下載後自動更新 App 內預覽、靜態桌布與 Live Wallpaper 背景。
+7. 離線或連線異常時保留最後一張動態桌布，並在 App 顯示連線異常訊息。
 
 ## Server 端
 
