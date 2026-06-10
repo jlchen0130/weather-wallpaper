@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6
+
+- Added phone-side wallpaper mode tracking for static versus dynamic wallpaper use.
+- Dynamic wallpaper auto-refresh now updates the Live Wallpaper only when the app's Live Wallpaper service is active.
+- Static wallpaper users keep their existing static wallpaper mode; cached downloads do not force-switch them to dynamic wallpaper.
+
 ## Server
 
 - Added `force=1` / `refresh=1` support to bypass same-scene wallpaper cache and generate a new server wallpaper on demand.

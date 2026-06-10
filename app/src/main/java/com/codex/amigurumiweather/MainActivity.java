@@ -223,6 +223,7 @@ public class MainActivity extends Activity {
 
     private void generateAndApplyWallpaper() {
         status("Status: building scene...");
+        prefs.edit().putString(AppConfig.KEY_WALLPAPER_MODE, AppConfig.WALLPAPER_MODE_STATIC).apply();
         executor.execute(() -> {
             try {
                 WeatherScene scene = SceneResolver.resolve(this);
@@ -231,7 +232,7 @@ public class MainActivity extends Activity {
                 String model = prefs.getString(AppConfig.KEY_OPENAI_MODEL, AppConfig.DEFAULT_OPENAI_MODEL);
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
                 if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
-                    applyCachedWallpaper("Status: connection error. Keeping the last dynamic wallpaper. " + ServerWallpaperClient.lastError());
+                    applyCachedWallpaper("Status: connection error. Keeping the last static wallpaper. " + ServerWallpaperClient.lastError(), true);
                     return;
                 }
                 if (bitmap == null && apiKey != null && !apiKey.trim().isEmpty()) {
@@ -254,7 +255,7 @@ public class MainActivity extends Activity {
                 });
             } catch (Exception error) {
                 if (ServerWallpaperClient.isConfigured(this)) {
-                    applyCachedWallpaper("Status: connection error. Keeping the last dynamic wallpaper. " + error.getMessage());
+                    applyCachedWallpaper("Status: connection error. Keeping the last static wallpaper. " + error.getMessage(), true);
                 } else {
                     WeatherScene scene = SceneFactory.createFallback();
                     Bitmap bitmap = LocalWallpaperRenderer.render(scene);
@@ -273,14 +274,21 @@ public class MainActivity extends Activity {
     }
 
     private void applyCachedWallpaper(String message) {
+        applyCachedWallpaper(message, AppConfig.WALLPAPER_MODE_STATIC.equals(
+            prefs.getString(AppConfig.KEY_WALLPAPER_MODE, AppConfig.WALLPAPER_MODE_STATIC)));
+    }
+
+    private void applyCachedWallpaper(String message, boolean applyStaticWallpaper) {
         Bitmap cached = WallpaperStore.load(this);
         if (cached == null) {
             runOnUiThread(() -> statusText.setText(message + " No cached wallpaper found yet."));
             return;
         }
-        try {
-            WallpaperManager.getInstance(this).setBitmap(cached);
-        } catch (Exception ignored) {
+        if (applyStaticWallpaper) {
+            try {
+                WallpaperManager.getInstance(this).setBitmap(cached);
+            } catch (Exception ignored) {
+            }
         }
         runOnUiThread(() -> {
             preview.setImageBitmap(Bitmap.createScaledBitmap(cached, 360, 640, true));
@@ -289,6 +297,7 @@ public class MainActivity extends Activity {
     }
 
     private void openLiveWallpaperPicker() {
+        prefs.edit().putString(AppConfig.KEY_WALLPAPER_MODE, AppConfig.WALLPAPER_MODE_DYNAMIC).apply();
         try {
             Intent intent = new Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
             intent.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
@@ -353,6 +362,9 @@ class AppConfig {
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
+    static final String KEY_WALLPAPER_MODE = "wallpaper_mode";
+    static final String WALLPAPER_MODE_STATIC = "static";
+    static final String WALLPAPER_MODE_DYNAMIC = "dynamic";
     static final String LAST_WALLPAPER_FILE = "last_wallpaper.png";
     static final String TEMP_WALLPAPER_FILE = "last_wallpaper.tmp";
 

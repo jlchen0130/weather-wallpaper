@@ -39,6 +39,10 @@ public class DynamicWallpaperService extends WallpaperService {
         public void onVisibilityChanged(boolean visible) {
             this.visible = visible;
             if (visible) {
+                getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(AppConfig.KEY_WALLPAPER_MODE, AppConfig.WALLPAPER_MODE_DYNAMIC)
+                    .apply();
                 refreshSceneIfNeeded(true);
                 draw();
             } else {
