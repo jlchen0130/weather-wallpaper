@@ -322,6 +322,11 @@ public class MainActivity extends Activity {
                     status("Status: no APK asset found in latest GitHub release.");
                     return;
                 }
+                int currentVersion = AppUpdater.currentVersionCode(this);
+                if (asset.versionCode <= currentVersion) {
+                    status("Status: already on the latest version (" + AppUpdater.currentVersionName(this) + ").");
+                    return;
+                }
                 status("Status: downloading " + asset.name + "...");
                 File apk = AppUpdater.download(this, asset);
                 Uri uri = Uri.parse("content://com.codex.amigurumiweather.apkprovider/" + apk.getName());
@@ -375,10 +380,14 @@ class AppConfig {
 class UpdateAsset {
     final String name;
     final String url;
+    final int versionCode;
+    final String versionName;
 
-    UpdateAsset(String name, String url) {
+    UpdateAsset(String name, String url, int versionCode, String versionName) {
         this.name = name;
         this.url = url;
+        this.versionCode = versionCode;
+        this.versionName = versionName;
     }
 }
 
@@ -386,6 +395,8 @@ class AppUpdater {
     static UpdateAsset findBestAsset() throws Exception {
         JSONObject release = new JSONObject(Http.get(
             new URL("https://api.github.com/repos/jlchen0130/codex_AI_lab/releases/latest"), null));
+        String versionName = release.optString("tag_name", release.optString("name", ""));
+        int versionCode = versionCodeFromName(versionName);
         org.json.JSONArray assets = release.getJSONArray("assets");
         String model = (Build.MANUFACTURER + " " + Build.MODEL + " " + Build.DEVICE).toLowerCase(Locale.US);
         boolean samsungU23 = model.contains("samsung") && (model.contains("u23") || model.contains("s23"));
@@ -397,13 +408,51 @@ class AppUpdater {
             String url = item.getString("browser_download_url");
             String lower = name.toLowerCase(Locale.US);
             if (samsungU23 && lower.contains("samsung") && (lower.contains("u23") || lower.contains("s23"))) {
-                return new UpdateAsset(name, url);
+                return new UpdateAsset(name, url, versionCode, versionName);
             }
             if (fallback == null && (lower.contains("universal") || lower.contains("debug") || lower.contains("theme"))) {
-                fallback = new UpdateAsset(name, url);
+                fallback = new UpdateAsset(name, url, versionCode, versionName);
             }
         }
         return fallback;
+    }
+
+    static int currentVersionCode(Context context) {
+        try {
+            if (Build.VERSION.SDK_INT >= 28) {
+                return (int) context.getPackageManager()
+                    .getPackageInfo(context.getPackageName(), 0)
+                    .getLongVersionCode();
+            }
+            return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    static String currentVersionName(Context context) {
+        try {
+            return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+        } catch (Exception ignored) {
+            return "current";
+        }
+    }
+
+    private static int versionCodeFromName(String raw) {
+        if (raw == null) return 0;
+        String clean = raw.trim().toLowerCase(Locale.US);
+        if (clean.startsWith("v")) clean = clean.substring(1);
+        String[] parts = clean.split("\\.");
+        try {
+            if (parts.length >= 2) {
+                int major = Integer.parseInt(parts[0].replaceAll("[^0-9]", ""));
+                int minor = Integer.parseInt(parts[1].replaceAll("[^0-9]", ""));
+                return major == 1 ? minor + 1 : major * 100 + minor;
+            }
+            return Integer.parseInt(clean.replaceAll("[^0-9]", ""));
+        } catch (Exception ignored) {
+            return 0;
+        }
     }
 
     static File download(Context context, UpdateAsset asset) throws Exception {

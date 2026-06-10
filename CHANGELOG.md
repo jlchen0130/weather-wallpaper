@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8
+
+- `Check app update` now compares the latest GitHub Release version with the installed app version.
+- If the installed app is already up to date, the app shows an up-to-date message and does not download or open the APK installer.
+
 ## 1.7
 
 - Phone storage now keeps only the latest dynamic wallpaper file.
