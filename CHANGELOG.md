@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0
+
+- Bundled the latest Kaohsiung landmark wallpaper directly into the APK.
+- If the server still returns the older Kaohsiung cached image, the phone now uses the bundled latest Kaohsiung wallpaper instead.
+- Kaohsiung static and dynamic wallpaper flows can sync the latest image even before Cloudflare R2 is refreshed.
+
 ## 2.9
 
 - Made Live Wallpaper motion visibly animated instead of relying on very subtle weather overlays.

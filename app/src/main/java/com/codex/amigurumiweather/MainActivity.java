@@ -561,6 +561,16 @@ class ServerWallpaperClient {
                 + "&landmarks=" + enc(join(scene.landmarks));
             JSONObject response = new JSONObject(Http.get(new URL(requestUrl), null));
             String fileName = response.optString("file_name", "");
+            String serverSceneKey = response.optString("scene_key", "");
+            Bitmap bundled = BundledWallpaper.loadIfServerIsOlder(context, scene, fileName, serverSceneKey);
+            if (bundled != null) {
+                WallpaperStore.save(context, bundled);
+                prefs.edit()
+                    .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
+                    .putString(AppConfig.KEY_LAST_SERVER_FILE, BundledWallpaper.KAOHSIUNG_LANDMARKS_FILE)
+                    .apply();
+                return bundled;
+            }
             String imageUrl = response.optString("image_url", "");
             Bitmap bitmap = null;
             if (!imageUrl.isEmpty()) {
@@ -578,6 +588,15 @@ class ServerWallpaperClient {
                 .apply();
             return bitmap;
         } catch (Exception error) {
+            Bitmap bundled = BundledWallpaper.loadFeatured(context, scene);
+            if (bundled != null) {
+                WallpaperStore.save(context, bundled);
+                context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE).edit()
+                    .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
+                    .putString(AppConfig.KEY_LAST_SERVER_FILE, BundledWallpaper.KAOHSIUNG_LANDMARKS_FILE)
+                    .apply();
+                return bundled;
+            }
             lastError = error.getMessage();
             return null;
         }
@@ -594,6 +613,28 @@ class ServerWallpaperClient {
             builder.append(values.get(i));
         }
         return builder.toString();
+    }
+}
+
+class BundledWallpaper {
+    static final String KAOHSIUNG_LANDMARKS_FILE = "bundled_kaohsiung_landmarks_v1.png";
+
+    static Bitmap loadIfServerIsOlder(Context context, WeatherScene scene, String fileName, String serverSceneKey) {
+        if (scene == null || scene.cityEnglish == null || !"Kaohsiung".equalsIgnoreCase(scene.cityEnglish.trim())) {
+            return null;
+        }
+        boolean oldServerImage = (serverSceneKey != null && serverSceneKey.contains("sky-city-label-v2"))
+            || "kaohsiung_20260610_003.png".equals(fileName);
+        if (!oldServerImage) return null;
+        return loadFeatured(context, scene);
+    }
+
+    static Bitmap loadFeatured(Context context, WeatherScene scene) {
+        if (scene == null || scene.cityEnglish == null || !"Kaohsiung".equalsIgnoreCase(scene.cityEnglish.trim())) {
+            return null;
+        }
+        int id = context.getResources().getIdentifier("kaohsiung_landmarks_v1", "drawable", context.getPackageName());
+        return id == 0 ? null : BitmapFactory.decodeResource(context.getResources(), id);
     }
 }
 
