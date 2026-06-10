@@ -120,6 +120,9 @@ public class DynamicWallpaperService extends WallpaperService {
                         } else if (background == null) {
                             background = LocalWallpaperRenderer.render(next);
                         }
+                    } else if (ServerWallpaperClient.isConfigured(DynamicWallpaperService.this)) {
+                        Bitmap server = ServerWallpaperClient.fetchOrCreate(DynamicWallpaperService.this, next);
+                        if (server != null) background = server;
                     }
                 } catch (Exception ignored) {
                     scene = SceneFactory.createFallback();

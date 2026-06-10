@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8
+
+- Live Wallpaper now checks the theme server on every refresh interval even when city, weather, and time period are unchanged.
+- This lets phones automatically pick up a newer server wallpaper file for the same scene.
+- Static wallpaper mode remains unchanged and is not auto-switched to Live Wallpaper.
+
 ## 2.7
 
 - Expanded Kaohsiung landmark data for AI wallpaper prompts.
