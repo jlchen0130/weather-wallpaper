@@ -12,7 +12,7 @@ const WEATHER_MAP = {
   Dust: "Foggy",
   Sand: "Foggy"
 };
-const PROMPT_VERSION = "sky-city-label-v2";
+const PROMPT_VERSION = "sky-city-label-v3-city-level";
 
 export default {
   async fetch(request, env, ctx) {
@@ -75,7 +75,8 @@ async function wallpaper(request, env, ctx) {
 
   const url = new URL(request.url);
   const scene = readScene(url);
-  const result = await ensureWallpaper(env, url, scene, { allowLatest: true, ctx });
+  const force = url.searchParams.get("force") === "1" || url.searchParams.get("refresh") === "1";
+  const result = await ensureWallpaper(env, url, scene, { allowLatest: !force, force, ctx });
   return json(result);
 }
 
@@ -83,7 +84,7 @@ async function ensureWallpaper(env, url, scene, options = {}) {
   const citySlug = slug(scene.city);
   const sceneKey = [citySlug, scene.country, scene.weather, scene.period, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
-  const existing = await env.WALLPAPER_BUCKET.get(manifestKey);
+  const existing = options.force ? null : await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
     const manifest = await existing.json();
     const existingImage = await env.WALLPAPER_BUCKET.get(manifest.object_key);
@@ -352,6 +353,7 @@ function buildPrompt(scene) {
   const label = isTaiwan ? scene.cityLocal : scene.city;
   return [
     "Create a premium 9:16 Android wallpaper in miniature Amigurumi crochet style.",
+    "Use only city or county-level geography. Do not depict districts, townships, streets, neighborhoods, or overly specific local areas.",
     `City: ${scene.city}. Country: ${scene.country}.`,
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${scene.landmarks.join(", ")}.`,

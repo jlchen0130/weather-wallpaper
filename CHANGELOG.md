@@ -1,5 +1,10 @@
 # Changelog
 
+## Server
+
+- Added `force=1` / `refresh=1` support to bypass same-scene wallpaper cache and generate a new server wallpaper on demand.
+- Bumped the server prompt version to city-level v3 so new AI images use county/city-level geography instead of district-level details.
+
 ## 2.5
 
 - GPS reverse geocoding now uses Taiwan county/city level instead of district/township level.
