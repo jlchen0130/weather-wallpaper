@@ -3,7 +3,10 @@ package com.codex.amigurumiweather;
 import android.Manifest;
 import android.app.Activity;
 import android.app.WallpaperManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -42,10 +45,13 @@ import org.json.JSONObject;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -62,6 +68,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final int REQUEST_ADMIN_IMAGE = 2401;
     private SharedPreferences prefs;
     private TextView statusText;
     private ImageView preview;
@@ -70,13 +77,33 @@ public class MainActivity extends Activity {
     private CheckBox useCustomLanguage;
     private EditText customLanguage;
     private Spinner characterSpinner;
+    private EditText adminToken;
+    private EditText adminCity;
+    private EditText adminCountry;
+    private EditText adminTempMin;
+    private EditText adminTempMax;
+    private EditText adminLandmarks;
+    private Spinner adminWeather;
+    private Spinner adminPeriod;
+    private Spinner adminCharacter;
+    private TextView adminPrompt;
+    private TextView adminImageStatus;
+    private Uri adminImageUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-        setContentView(buildUi());
-        requestLocationPermissionIfNeeded();
+        if (isAdminApp()) {
+            setContentView(buildAdminUi());
+        } else {
+            setContentView(buildUi());
+            requestLocationPermissionIfNeeded();
+        }
+    }
+
+    private boolean isAdminApp() {
+        return getPackageName().endsWith(".admin");
     }
 
     private View buildUi() {
@@ -202,6 +229,138 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
+    private View buildAdminUi() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(18), dp(18), dp(18), dp(28));
+        root.setBackgroundColor(Color.rgb(255, 248, 239));
+
+        TextView title = new TextView(this);
+        title.setText("Weather Wallpaper Admin");
+        title.setTextSize(24f);
+        title.setTextColor(Color.rgb(65, 45, 34));
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        root.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("\u7528\u65bc API \u984d\u5ea6\u4e0d\u8db3\u6642\uff1a\u7522\u751f\u63d0\u793a\u8a5e\u3001\u8907\u88fd\u5230 ChatGPT\u3001\u9078\u53d6\u5716\u7247\u4e26\u4e0a\u50b3 R2\u3002");
+        subtitle.setTextSize(14f);
+        subtitle.setTextColor(Color.rgb(92, 74, 62));
+        subtitle.setPadding(0, dp(6), 0, dp(12));
+        root.addView(subtitle);
+
+        adminToken = input("\u4e0a\u50b3 token", "admin_upload_token", true);
+        root.addView(adminToken);
+
+        adminCity = input("\u57ce\u5e02\uff1aKaohsiung", "admin_city", false);
+        if (adminCity.getText().toString().trim().isEmpty()) adminCity.setText("Kaohsiung");
+        root.addView(adminCity);
+
+        adminCountry = input("\u570b\u5bb6\uff1aTaiwan", "admin_country", false);
+        if (adminCountry.getText().toString().trim().isEmpty()) adminCountry.setText("Taiwan");
+        root.addView(adminCountry);
+
+        adminWeather = spinner(new String[] {"Sunny", "Cloudy", "Rainy", "Snowy", "Foggy"}, prefs.getString("admin_weather", "Cloudy"));
+        root.addView(label("\u5929\u6c23"));
+        root.addView(adminWeather);
+
+        adminPeriod = spinner(new String[] {"Morning", "Noon", "Sunset", "Evening", "DeepNight"}, prefs.getString("admin_period", "Noon"));
+        root.addView(label("\u6642\u6bb5"));
+        root.addView(adminPeriod);
+
+        adminCharacter = spinner(CharacterOptions.LABELS, CharacterOptions.LABELS[CharacterOptions.indexOf(prefs.getString("admin_character", "person"))]);
+        root.addView(label("\u4e3b\u89d2"));
+        root.addView(adminCharacter);
+
+        adminTempMin = input("\u6700\u4f4e\u6eab", "admin_temp_min", false);
+        if (adminTempMin.getText().toString().trim().isEmpty()) adminTempMin.setText("27");
+        root.addView(adminTempMin);
+
+        adminTempMax = input("\u6700\u9ad8\u6eab", "admin_temp_max", false);
+        if (adminTempMax.getText().toString().trim().isEmpty()) adminTempMax.setText("32");
+        root.addView(adminTempMax);
+
+        adminLandmarks = input("\u666f\u9ede\uff0c\u7528 | \u5206\u9694", "admin_landmarks", false);
+        if (adminLandmarks.getText().toString().trim().isEmpty()) {
+            adminLandmarks.setText("85 Sky Tower|Love River|Pier-2 Art Center");
+        }
+        root.addView(adminLandmarks);
+
+        Button promptButton = new Button(this);
+        promptButton.setText("\u7522\u751f\u4e26\u8907\u88fd\u63d0\u793a\u8a5e");
+        promptButton.setOnClickListener(v -> {
+            saveAdminSettings();
+            copyAdminPrompt();
+        });
+        root.addView(promptButton, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        Button shareButton = new Button(this);
+        shareButton.setText("\u5206\u4eab\u63d0\u793a\u8a5e\u5230 GPT App");
+        shareButton.setOnClickListener(v -> shareAdminPrompt());
+        root.addView(shareButton, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        adminPrompt = new TextView(this);
+        adminPrompt.setText(buildAdminPrompt());
+        adminPrompt.setTextSize(12f);
+        adminPrompt.setTextColor(Color.rgb(65, 45, 34));
+        adminPrompt.setPadding(dp(10), dp(10), dp(10), dp(10));
+        adminPrompt.setBackgroundColor(Color.rgb(241, 224, 204));
+        root.addView(adminPrompt);
+
+        Button choose = new Button(this);
+        choose.setText("\u9078\u53d6 GPT \u7522\u51fa\u5716\u7247");
+        choose.setOnClickListener(v -> pickAdminImage());
+        root.addView(choose, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        Button upload = new Button(this);
+        upload.setText("\u4e0a\u50b3\u5230 R2 \u4e26\u63a8\u9001\u7d66\u624b\u6a5f App");
+        upload.setOnClickListener(v -> {
+            saveAdminSettings();
+            uploadAdminImage();
+        });
+        root.addView(upload, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        adminImageStatus = new TextView(this);
+        adminImageStatus.setText("Status: ready");
+        adminImageStatus.setTextSize(14f);
+        adminImageStatus.setTextColor(Color.rgb(65, 45, 34));
+        adminImageStatus.setPadding(0, dp(10), 0, 0);
+        root.addView(adminImageStatus);
+
+        TextView version = new TextView(this);
+        version.setText("Admin APK \u7248\u672c\uff1a" + AppUpdater.currentVersionName(this));
+        version.setGravity(Gravity.CENTER);
+        version.setPadding(0, dp(8), 0, 0);
+        root.addView(version);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        return scroll;
+    }
+
+    private TextView label(String value) {
+        TextView text = new TextView(this);
+        text.setText(value);
+        text.setTextSize(13f);
+        text.setTextColor(Color.rgb(65, 45, 34));
+        text.setPadding(0, dp(8), 0, 0);
+        return text;
+    }
+
+    private Spinner spinner(String[] values, String selected) {
+        Spinner spinner = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, values);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equals(selected)) {
+                spinner.setSelection(i);
+                break;
+            }
+        }
+        return spinner;
+    }
+
     private EditText input(String hint, String key, boolean secret) {
         EditText editText = new EditText(this);
         editText.setHint(hint);
@@ -226,6 +385,161 @@ public class MainActivity extends Activity {
             .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
             .apply();
         Toast.makeText(this, "\u5df2\u5132\u5b58", Toast.LENGTH_SHORT).show();
+    }
+
+    private void saveAdminSettings() {
+        prefs.edit()
+            .putString("admin_upload_token", adminToken.getText().toString().trim())
+            .putString("admin_city", adminCity.getText().toString().trim())
+            .putString("admin_country", adminCountry.getText().toString().trim())
+            .putString("admin_weather", adminWeather.getSelectedItem().toString())
+            .putString("admin_period", adminPeriod.getSelectedItem().toString())
+            .putString("admin_character", CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition()))
+            .putString("admin_temp_min", adminTempMin.getText().toString().trim())
+            .putString("admin_temp_max", adminTempMax.getText().toString().trim())
+            .putString("admin_landmarks", adminLandmarks.getText().toString().trim())
+            .apply();
+    }
+
+    private String buildAdminPrompt() {
+        String city = adminCity == null ? prefs.getString("admin_city", "Kaohsiung") : adminCity.getText().toString().trim();
+        String country = adminCountry == null ? prefs.getString("admin_country", "Taiwan") : adminCountry.getText().toString().trim();
+        String weather = adminWeather == null ? prefs.getString("admin_weather", "Cloudy") : adminWeather.getSelectedItem().toString();
+        String period = adminPeriod == null ? prefs.getString("admin_period", "Noon") : adminPeriod.getSelectedItem().toString();
+        String character = adminCharacter == null ? prefs.getString("admin_character", "person") : CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition());
+        String min = adminTempMin == null ? prefs.getString("admin_temp_min", "27") : adminTempMin.getText().toString().trim();
+        String max = adminTempMax == null ? prefs.getString("admin_temp_max", "32") : adminTempMax.getText().toString().trim();
+        String landmarks = adminLandmarks == null ? prefs.getString("admin_landmarks", "85 Sky Tower|Love River|Pier-2 Art Center") : adminLandmarks.getText().toString().trim();
+        String characterText = CharacterOptions.promptText(character);
+        return "Create a premium 9:16 Android live wallpaper background in miniature Amigurumi crochet diorama style.\n"
+            + "City: " + cleanOr(city, "Kaohsiung") + ". Country: " + cleanOr(country, "Taiwan") + ".\n"
+            + "Weather: " + weather + ". Time period: " + period + ". Temperature: " + cleanOr(min, "27") + "C~" + cleanOr(max, "32") + "C.\n"
+            + "Landmarks: " + cleanOr(landmarks, "85 Sky Tower|Love River|Pier-2 Art Center").replace("|", ", ") + ".\n"
+            + "Use only 2-3 landmark anchors as recognizable city signals; do not crowd the image.\n"
+            + "Art direction: bright open sky, airy daylight, crisp dimensional crochet stitches, miniature toy-city depth, clean composition, charming handcrafted detail, soft warm color, lively travel-postcard feeling.\n"
+            + "Avoid flat felt texture, muddy gray haze, dull low-contrast lighting, oversized text, cropped faces, empty foreground, simple blocky buildings.\n"
+            + "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.\n"
+            + characterText + "\n"
+            + "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.\n"
+            + "Add subtle visual motion cues suitable for a live wallpaper background: drifting crochet clouds, tiny boats on water, scooter movement, walking poses, fluttering shop awnings, falling rain or snow when weather requires it.\n"
+            + "Keep the upper sky area light, calm, open, and visually clean for phone time/date widgets.\n"
+            + "Do not write the city name anywhere in the image. Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets. No large readable headline text.";
+    }
+
+    private void copyAdminPrompt() {
+        String prompt = buildAdminPrompt();
+        adminPrompt.setText(prompt);
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("wallpaper prompt", prompt));
+        adminImageStatus.setText("Status: prompt copied. Paste it into ChatGPT.");
+    }
+
+    private void shareAdminPrompt() {
+        String prompt = buildAdminPrompt();
+        adminPrompt.setText(prompt);
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        clipboard.setPrimaryClip(ClipData.newPlainText("wallpaper prompt", prompt));
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_TEXT, prompt);
+        startActivity(Intent.createChooser(send, "Share prompt"));
+    }
+
+    private void pickAdminImage() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("image/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(intent, REQUEST_ADMIN_IMAGE);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_ADMIN_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            adminImageUri = data.getData();
+            getContentResolver().takePersistableUriPermission(adminImageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (adminImageStatus != null) adminImageStatus.setText("Status: image selected.");
+        }
+    }
+
+    private void uploadAdminImage() {
+        if (adminImageUri == null) {
+            adminImageStatus.setText("Status: select an image first.");
+            return;
+        }
+        adminImageStatus.setText("Status: uploading to R2...");
+        executor.execute(() -> {
+            try {
+                String result = uploadManualWallpaper();
+                runOnUiThread(() -> adminImageStatus.setText("Status: uploaded. Phone apps will sync latest wallpaper.\n" + result));
+            } catch (Exception error) {
+                runOnUiThread(() -> adminImageStatus.setText("Status: upload failed. " + error.getMessage()));
+            }
+        });
+    }
+
+    private String uploadManualWallpaper() throws Exception {
+        String boundary = "----amigurumi" + System.currentTimeMillis();
+        URL url = new URL(AppConfig.DEFAULT_THEME_SERVER_URL + "/admin/upload");
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(120000);
+        connection.setDoOutput(true);
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        try (DataOutputStream out = new DataOutputStream(connection.getOutputStream())) {
+            writeField(out, boundary, "token", adminToken.getText().toString().trim());
+            writeField(out, boundary, "city", cleanOr(adminCity.getText().toString(), "Kaohsiung"));
+            writeField(out, boundary, "cityLocal", cleanOr(adminCity.getText().toString(), "Kaohsiung"));
+            writeField(out, boundary, "country", cleanOr(adminCountry.getText().toString(), "Taiwan"));
+            writeField(out, boundary, "date", LocalDate.now().format(DateTimeFormatter.ISO_DATE));
+            writeField(out, boundary, "weather", adminWeather.getSelectedItem().toString());
+            writeField(out, boundary, "period", adminPeriod.getSelectedItem().toString());
+            writeField(out, boundary, "character", CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition()));
+            writeField(out, boundary, "tempMin", cleanOr(adminTempMin.getText().toString(), "27"));
+            writeField(out, boundary, "tempMax", cleanOr(adminTempMax.getText().toString(), "32"));
+            writeField(out, boundary, "landmarks", cleanOr(adminLandmarks.getText().toString(), "85 Sky Tower|Love River|Pier-2 Art Center"));
+            writeFile(out, boundary, adminImageUri);
+            out.writeBytes("--" + boundary + "--\r\n");
+        }
+        String body = Http.read(connection);
+        if (connection.getResponseCode() < 200 || connection.getResponseCode() > 299) {
+            throw new IllegalStateException("HTTP " + connection.getResponseCode() + " " + body);
+        }
+        return body;
+    }
+
+    private void writeField(DataOutputStream out, String boundary, String name, String value) throws Exception {
+        out.writeBytes("--" + boundary + "\r\n");
+        out.writeBytes("Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n");
+        out.write(value.getBytes("UTF-8"));
+        out.writeBytes("\r\n");
+    }
+
+    private void writeFile(DataOutputStream out, String boundary, Uri uri) throws Exception {
+        ContentResolver resolver = getContentResolver();
+        String type = resolver.getType(uri);
+        if (type == null || type.trim().isEmpty()) type = "image/png";
+        out.writeBytes("--" + boundary + "\r\n");
+        out.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"wallpaper." + extensionFor(type) + "\"\r\n");
+        out.writeBytes("Content-Type: " + type + "\r\n\r\n");
+        try (InputStream input = resolver.openInputStream(uri)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = input.read(buffer)) != -1) out.write(buffer, 0, read);
+        }
+        out.writeBytes("\r\n");
+    }
+
+    private String cleanOr(String value, String fallback) {
+        if (value == null || value.trim().isEmpty()) return fallback;
+        return value.trim();
+    }
+
+    private String extensionFor(String type) {
+        if ("image/jpeg".equals(type)) return "jpg";
+        if ("image/webp".equals(type)) return "webp";
+        return "png";
     }
 
     private void requestLocationPermissionIfNeeded() {
@@ -335,7 +649,7 @@ public class MainActivity extends Activity {
                 }
                 status("Status: downloading " + asset.name + "...");
                 File apk = AppUpdater.download(this, asset);
-                Uri uri = Uri.parse("content://com.codex.amigurumiweather.apkprovider/" + apk.getName());
+                Uri uri = Uri.parse("content://" + getPackageName() + ".apkprovider/" + apk.getName());
                 Intent intent = new Intent(Intent.ACTION_VIEW);
                 intent.setDataAndType(uri, "application/vnd.android.package-archive");
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
@@ -415,6 +729,22 @@ class CharacterOptions {
     static String valueAt(int index) {
         if (index < 0 || index >= VALUES.length) return VALUES[0];
         return VALUES[index];
+    }
+
+    static String promptText(String value) {
+        if ("cat".equals(value)) {
+            return "Main characters are cute chibi Amigurumi cats doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+        }
+        if ("hamster".equals(value)) {
+            return "Main characters are cute chibi Amigurumi hamsters doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+        }
+        if ("dog".equals(value)) {
+            return "Main characters are cute chibi Amigurumi dogs doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+        }
+        if ("parrot".equals(value)) {
+            return "Main characters are cute chibi Amigurumi parrots doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+        }
+        return "Main characters are cute chibi Amigurumi people doing daily life actions: commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.";
     }
 }
 
@@ -1135,7 +1465,7 @@ class Http {
         }
     }
 
-    private static String read(HttpURLConnection connection) throws Exception {
+    static String read(HttpURLConnection connection) throws Exception {
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             connection.getResponseCode() >= 200 && connection.getResponseCode() <= 299
                 ? connection.getInputStream()

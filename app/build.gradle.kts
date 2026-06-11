@@ -31,5 +31,10 @@ android {
         create("galaxyZFold5") {
             dimension = "device"
         }
+        create("admin") {
+            dimension = "device"
+            applicationIdSuffix = ".admin"
+            versionNameSuffix = "-admin"
+        }
     }
 }

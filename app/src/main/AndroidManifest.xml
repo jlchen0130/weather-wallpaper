@@ -34,7 +34,7 @@
 
         <provider
             android:name=".ApkFileProvider"
-            android:authorities="com.codex.amigurumiweather.apkprovider"
+            android:authorities="${applicationId}.apkprovider"
             android:exported="false"
             android:grantUriPermissions="true" />
     </application>
