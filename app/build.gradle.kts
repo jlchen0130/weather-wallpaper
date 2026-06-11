@@ -10,7 +10,17 @@ android {
         applicationId = "com.codex.amigurumiweather"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 24
+        versionName = "3.3"
+    }
+
+    flavorDimensions += "device"
+    productFlavors {
+        create("universal") {
+            dimension = "device"
+        }
+        create("galaxyZFold5") {
+            dimension = "device"
+        }
     }
 }

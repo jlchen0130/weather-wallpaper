@@ -12,7 +12,7 @@ const WEATHER_MAP = {
   Dust: "Foggy",
   Sand: "Foggy"
 };
-const PROMPT_VERSION = "sky-city-label-v3-city-level";
+const PROMPT_VERSION = "open-sky-diorama-character-v4";
 const DAILY_PERIODS = ["Morning", "Noon", "Sunset", "Evening", "DeepNight"];
 
 export default {
@@ -83,7 +83,7 @@ async function wallpaper(request, env, ctx) {
 
 async function ensureWallpaper(env, url, scene, options = {}) {
   const citySlug = slug(scene.city);
-  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, PROMPT_VERSION].join("|");
+  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, PROMPT_VERSION].join("|");
   const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
   const existing = options.force ? null : await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
@@ -132,8 +132,10 @@ async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey)
     httpMetadata: { contentType: "image/png" },
     customMetadata: {
       city: scene.city,
+      country: scene.country,
       weather: scene.weather,
       period: scene.period,
+      character: scene.character,
       date: scene.date,
       sceneKey
     }
@@ -146,6 +148,7 @@ async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey)
     country: scene.country,
     weather: scene.weather,
     period: scene.period,
+    character: scene.character,
     date: scene.date,
     scene_key: sceneKey,
     animation: {
@@ -185,6 +188,7 @@ async function latestCityWallpaper(env, url, citySlug) {
     country: metadata.country || "",
     weather: metadata.weather || "",
     period: metadata.period || "",
+    character: metadata.character || "person",
     date: metadata.date || "",
     image_url: fileUrl(url, object.key),
     expires_at: expiresAt(object.uploaded, env)
@@ -358,6 +362,7 @@ function readScene(url) {
     date: url.searchParams.get("date") || new Date().toISOString().slice(0, 10),
     weather: url.searchParams.get("weather") || "Cloudy",
     period: url.searchParams.get("period") || "Noon",
+    character: normalizeCharacter(url.searchParams.get("character") || "person"),
     tempMin: url.searchParams.get("tempMin") || "27",
     tempMax: url.searchParams.get("tempMax") || "32",
     landmarks: landmarks.length ? landmarks : ["central station", "old town market", "city park"]
@@ -368,16 +373,20 @@ function buildPrompt(scene) {
   const isTaiwan = scene.country === "Taiwan";
   const label = isTaiwan ? scene.cityLocal : scene.city;
   const landmarks = selectedLandmarks(scene.landmarks);
+  const character = characterPrompt(scene.character);
   return [
-    "Create a premium 9:16 Android wallpaper in miniature Amigurumi crochet style.",
+    "Create a premium 9:16 Android live wallpaper background in miniature Amigurumi crochet diorama style.",
+    "Match this art direction: bright open sky, airy daylight, crisp dimensional crochet stitches, miniature toy-city depth, clean composition, charming handcrafted detail, soft warm color, and a lively travel-postcard feeling.",
+    "Avoid flat felt texture, muddy gray haze, dull low-contrast lighting, oversized text, cropped faces, empty foreground, and simple blocky buildings.",
     "Use only city or county-level geography. Do not depict districts, townships, streets, neighborhoods, or overly specific local areas.",
     `City: ${scene.city}. Country: ${scene.country}.`,
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${landmarks.join(", ")}.`,
     "Use only these 2-3 landmark anchors as recognizable city signals; do not crowd the image with too many landmarks.",
-    "All buildings, vehicles, people, shops, trees, and roads are handmade crochet toys.",
-    "Show Amigurumi people doing natural daily life actions, such as commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.",
-    "People should look active and varied, not just standing still.",
+    "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.",
+    character,
+    "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.",
+    "Add subtle visual motion cues suitable for a live wallpaper background: drifting crochet clouds, tiny boats on water, scooter movement, walking poses, fluttering shop awnings, falling rain or snow when weather requires it.",
     "Keep the upper sky area light, calm, and visually clean so phone time, date, and status widgets do not conflict.",
     `Place one clear city name label in the pale open sky area: ${label}.`,
     "The city label should look embroidered with yarn, large enough to read, centered or upper-center, and must not overlap buildings, people, clouds, rain, or lock-screen widgets.",
@@ -386,6 +395,27 @@ function buildPrompt(scene) {
     "Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets.",
     "No extra readable text beyond the city name label."
   ].join("\n");
+}
+
+function normalizeCharacter(value) {
+  const clean = String(value || "person").trim().toLowerCase();
+  if (["cat", "hamster", "dog", "parrot"].includes(clean)) return clean;
+  return "person";
+}
+
+function characterPrompt(value) {
+  switch (normalizeCharacter(value)) {
+    case "cat":
+      return "Main characters are cute chibi Amigurumi cats doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+    case "hamster":
+      return "Main characters are cute chibi Amigurumi hamsters doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+    case "dog":
+      return "Main characters are cute chibi Amigurumi dogs doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+    case "parrot":
+      return "Main characters are cute chibi Amigurumi parrots doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+    default:
+      return "Main characters are cute chibi Amigurumi people doing daily life actions: commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.";
+  }
 }
 
 function selectedLandmarks(landmarks) {

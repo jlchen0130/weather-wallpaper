@@ -107,7 +107,7 @@ public class DynamicWallpaperService extends WallpaperService {
                 try {
                     WeatherScene next = SceneResolver.resolve(DynamicWallpaperService.this);
                     String oldKey = prefs.getString(AppConfig.KEY_LAST_SCENE_KEY, "");
-                    String newKey = next.sceneKey();
+                    String newKey = SceneKeys.forContext(DynamicWallpaperService.this, next);
                     Bitmap latest = WallpaperStore.load(DynamicWallpaperService.this);
                     if (background == null && latest != null) background = latest;
                     scene = next;

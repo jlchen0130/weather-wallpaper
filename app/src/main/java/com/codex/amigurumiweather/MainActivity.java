@@ -28,10 +28,12 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -67,6 +69,7 @@ public class MainActivity extends Activity {
     private CheckBox useCustomLocation;
     private CheckBox useCustomLanguage;
     private EditText customLanguage;
+    private Spinner characterSpinner;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,6 +120,24 @@ public class MainActivity extends Activity {
             customLanguage.setText("Traditional Chinese");
         }
         root.addView(customLanguage);
+
+        TextView characterLabel = new TextView(this);
+        characterLabel.setText("\u684c\u5e03\u4e3b\u89d2");
+        characterLabel.setTextSize(14f);
+        characterLabel.setTextColor(Color.rgb(65, 45, 34));
+        characterLabel.setPadding(0, dp(8), 0, 0);
+        root.addView(characterLabel);
+
+        characterSpinner = new Spinner(this);
+        ArrayAdapter<String> characterAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            CharacterOptions.LABELS
+        );
+        characterAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        characterSpinner.setAdapter(characterAdapter);
+        characterSpinner.setSelection(CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person")));
+        root.addView(characterSpinner);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -199,6 +220,7 @@ public class MainActivity extends Activity {
             .putString(AppConfig.KEY_CUSTOM_CITY, customCity.getText().toString().trim())
             .putBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, useCustomLanguage.isChecked())
             .putString(AppConfig.KEY_CUSTOM_LANGUAGE, customLanguage.getText().toString().trim())
+            .putString(AppConfig.KEY_CHARACTER, CharacterOptions.valueAt(characterSpinner.getSelectedItemPosition()))
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(AppConfig.DEFAULT_UPDATE_MINUTES))
             .putString(AppConfig.KEY_WEATHER_BACKEND_URL, "")
             .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
@@ -236,7 +258,7 @@ public class MainActivity extends Activity {
                 });
 
                 WallpaperManager.getInstance(this).setBitmap(bitmap);
-                prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey()).apply();
+                prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, SceneKeys.forContext(this, scene)).apply();
                 Bitmap finalBitmap = bitmap;
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(finalBitmap, 360, 640, true));
@@ -345,6 +367,7 @@ class AppConfig {
     static final String KEY_CUSTOM_CITY = "custom_city";
     static final String KEY_USE_CUSTOM_LANGUAGE = "use_custom_language";
     static final String KEY_CUSTOM_LANGUAGE = "custom_language";
+    static final String KEY_CHARACTER = "character";
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
@@ -366,6 +389,35 @@ class AppConfig {
     }
 }
 
+class CharacterOptions {
+    static final String[] LABELS = {
+        "\u4eba",
+        "\u8c93",
+        "\u5009\u9f20",
+        "\u72d7",
+        "\u9e1a\u9d61"
+    };
+    private static final String[] VALUES = {
+        "person",
+        "cat",
+        "hamster",
+        "dog",
+        "parrot"
+    };
+
+    static int indexOf(String value) {
+        for (int i = 0; i < VALUES.length; i++) {
+            if (VALUES[i].equals(value)) return i;
+        }
+        return 0;
+    }
+
+    static String valueAt(int index) {
+        if (index < 0 || index >= VALUES.length) return VALUES[0];
+        return VALUES[index];
+    }
+}
+
 class UpdateAsset {
     final String name;
     final String url;
@@ -383,12 +435,14 @@ class UpdateAsset {
 class AppUpdater {
     static UpdateAsset findBestAsset() throws Exception {
         JSONObject release = new JSONObject(Http.get(
-            new URL("https://api.github.com/repos/jlchen0130/codex_AI_lab/releases/latest"), null));
+            new URL("https://api.github.com/repos/jlchen0130/weather-wallpaper/releases/latest"), null));
         String versionName = release.optString("tag_name", release.optString("name", ""));
         int versionCode = versionCodeFromName(versionName);
         org.json.JSONArray assets = release.getJSONArray("assets");
         String model = (Build.MANUFACTURER + " " + Build.MODEL + " " + Build.DEVICE).toLowerCase(Locale.US);
         boolean samsungU23 = model.contains("samsung") && (model.contains("u23") || model.contains("s23"));
+        boolean galaxyZFold5 = model.contains("samsung")
+            && (model.contains("fold5") || model.contains("fold 5") || model.contains("f946"));
         UpdateAsset fallback = null;
         for (int i = 0; i < assets.length(); i++) {
             JSONObject item = assets.getJSONObject(i);
@@ -396,6 +450,9 @@ class AppUpdater {
             if (!name.toLowerCase(Locale.US).endsWith(".apk")) continue;
             String url = item.getString("browser_download_url");
             String lower = name.toLowerCase(Locale.US);
+            if (galaxyZFold5 && (lower.contains("zfold5") || lower.contains("z-fold-5") || lower.contains("fold5"))) {
+                return new UpdateAsset(name, url, versionCode, versionName);
+            }
             if (samsungU23 && lower.contains("samsung") && (lower.contains("u23") || lower.contains("s23"))) {
                 return new UpdateAsset(name, url, versionCode, versionName);
             }
@@ -542,6 +599,7 @@ class ServerWallpaperClient {
                 + "&date=" + enc(scene.date)
                 + "&weather=" + enc(scene.weather)
                 + "&period=" + enc(scene.timePeriod)
+                + "&character=" + enc(prefs.getString(AppConfig.KEY_CHARACTER, "person"))
                 + "&tempMin=" + scene.tempMin
                 + "&tempMax=" + scene.tempMax
                 + "&landmarks=" + enc(join(scene.landmarks));
@@ -559,7 +617,7 @@ class ServerWallpaperClient {
             }
             WallpaperStore.save(context, bitmap);
             prefs.edit()
-                .putString(AppConfig.KEY_LAST_SCENE_KEY, scene.sceneKey())
+                .putString(AppConfig.KEY_LAST_SCENE_KEY, SceneKeys.forContext(context, scene))
                 .putString(AppConfig.KEY_LAST_SERVER_FILE, fileName)
                 .apply();
             return bitmap;
@@ -723,6 +781,14 @@ class WeatherScene {
     WeatherScene withLanguage(String value) {
         return new WeatherScene(cityLocal, cityEnglish, country, date, time, weather,
             tempMin, tempMax, timePeriod, landmarks, value);
+    }
+}
+
+class SceneKeys {
+    static String forContext(Context context, WeatherScene scene) {
+        SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+        String character = prefs.getString(AppConfig.KEY_CHARACTER, "person");
+        return scene.sceneKey() + "|" + character;
     }
 }
 
