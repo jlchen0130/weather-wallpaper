@@ -198,6 +198,9 @@ async function wallpaper(request, env, ctx) {
   const url = new URL(request.url);
   const scene = readScene(url);
   const force = url.searchParams.get("force") === "1" || url.searchParams.get("refresh") === "1";
+  if (force && !authorized(request, url, env)) {
+    return json({ error: "force refresh requires admin authorization" }, 401);
+  }
   const result = await ensureWallpaper(env, url, scene, { allowLatest: !force, force, ctx });
   return json(result);
 }
@@ -226,21 +229,83 @@ async function ensureWallpaper(env, url, scene, options = {}) {
   if (options.allowLatest) {
     const latest = await latestCityWallpaper(env, url, citySlug);
     if (latest) {
-      if (options.ctx) {
-        options.ctx.waitUntil(createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey));
-      }
       return {
         ...latest,
         scene_key: sceneKey,
         requested_weather: scene.weather,
         requested_period: scene.period,
         reused: true,
-        pending_refresh: true
+        pending_refresh: false,
+        limited_reason: "client requests reuse latest wallpaper; scheduled jobs create new scenes"
       };
     }
   }
 
-  return createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey);
+  return createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, manifestKey);
+}
+
+async function createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, manifestKey) {
+  const latest = await latestCityWallpaper(env, url, citySlug);
+  const lockKey = `locks/${citySlug}/${hash(sceneKey)}.lock`;
+  const lock = await env.WALLPAPER_BUCKET.get(lockKey);
+  if (lock && !isLockExpired(lock.uploaded)) {
+    if (latest) {
+      return {
+        ...latest,
+        scene_key: sceneKey,
+        requested_weather: scene.weather,
+        requested_period: scene.period,
+        reused: true,
+        pending_refresh: true,
+        limited_reason: "generation already pending"
+      };
+    }
+    return {
+      error: "generation already pending",
+      scene_key: sceneKey,
+      requested_weather: scene.weather,
+      requested_period: scene.period,
+      reused: false,
+      pending_refresh: true
+    };
+  }
+
+  const dailyLimit = maxDailyGenerationsPerCity(env);
+  const dailyCount = await countDailyWallpapers(env, citySlug, scene.date);
+  if (dailyCount >= dailyLimit) {
+    if (latest) {
+      return {
+        ...latest,
+        scene_key: sceneKey,
+        requested_weather: scene.weather,
+        requested_period: scene.period,
+        reused: true,
+        pending_refresh: false,
+        limited_reason: `daily generation limit reached: ${dailyLimit}`
+      };
+    }
+    return {
+      error: `daily generation limit reached: ${dailyLimit}`,
+      scene_key: sceneKey,
+      requested_weather: scene.weather,
+      requested_period: scene.period,
+      reused: false,
+      pending_refresh: false,
+      limited_reason: `daily generation limit reached: ${dailyLimit}`
+    };
+  }
+
+  await env.WALLPAPER_BUCKET.put(lockKey, JSON.stringify({
+    scene_key: sceneKey,
+    created_at: new Date().toISOString()
+  }), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" }
+  });
+  try {
+    return await createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey);
+  } finally {
+    await env.WALLPAPER_BUCKET.delete(lockKey);
+  }
 }
 
 async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey) {
@@ -324,20 +389,19 @@ async function refreshTrackedCities(env) {
   for (const city of cities) {
     try {
       const weatherInfo = await fetchWeatherByLocation(env, city.lat, city.lon);
-      for (const period of DAILY_PERIODS) {
-        const scene = {
-          city: city.city,
-          cityLocal: city.cityLocal || city.city,
-          country: city.country || "Taiwan",
-          date: todayForOffset(city.utcOffset || 8),
-          weather: weatherInfo.weather,
-          period,
-          tempMin: String(Math.round(weatherInfo.temp_min)),
-          tempMax: String(Math.round(weatherInfo.temp_max)),
-          landmarks: city.landmarks || ["central station", "old town market", "city park"]
-        };
-        await ensureWallpaper(env, url, scene);
-      }
+      const scene = {
+        city: city.city,
+        cityLocal: city.cityLocal || city.city,
+        country: city.country || "Taiwan",
+        date: todayForOffset(city.utcOffset || 8),
+        weather: weatherInfo.weather,
+        period: timePeriodForOffset(city.utcOffset || 8),
+        character: "person",
+        tempMin: String(Math.round(weatherInfo.temp_min)),
+        tempMax: String(Math.round(weatherInfo.temp_max)),
+        landmarks: city.landmarks || ["central station", "old town market", "city park"]
+      };
+      await ensureWallpaper(env, url, scene);
     } catch (error) {
       console.log(`tracked city refresh failed: ${city.city}: ${error.message}`);
     }
@@ -469,6 +533,28 @@ function isExpired(uploaded, env) {
 
 function expiresAt(uploaded, env) {
   return new Date(new Date(uploaded).getTime() + retentionMs(env)).toUTCString();
+}
+
+function isLockExpired(uploaded) {
+  if (!uploaded) return false;
+  return Date.now() - new Date(uploaded).getTime() > 15 * 60 * 1000;
+}
+
+function maxDailyGenerationsPerCity(env) {
+  const value = Number(env.MAX_DAILY_GENERATIONS_PER_CITY || 5);
+  return Math.max(1, Math.min(20, value));
+}
+
+async function countDailyWallpapers(env, citySlug, date) {
+  const prefix = `wallpapers/${citySlug}/${citySlug}_${date.replaceAll("-", "")}_`;
+  let count = 0;
+  let cursor;
+  do {
+    const listed = await env.WALLPAPER_BUCKET.list({ prefix, cursor, limit: 100 });
+    count += (listed.objects || []).filter((object) => !isExpired(object.uploaded, env)).length;
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+  return count;
 }
 
 function readScene(url) {
