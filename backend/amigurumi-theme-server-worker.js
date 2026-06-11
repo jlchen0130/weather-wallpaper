@@ -588,7 +588,7 @@ function buildPrompt(scene) {
     `City: ${scene.city}. Country: ${scene.country}.`,
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${landmarks.join(", ")}.`,
-    "Use only these 2-3 landmark anchors as recognizable city signals; do not crowd the image with too many landmarks.",
+    "Use 3-5 landmark anchors as recognizable city signals while keeping the composition clean and not overcrowded.",
     "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.",
     character,
     "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.",
@@ -624,7 +624,7 @@ function normalizePeriod(value) {
 function characterPrompt(value) {
   switch (normalizeCharacter(value)) {
     case "cat":
-      return "Main characters are cute chibi Amigurumi cats doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+      return "Main characters are varied cute chibi Amigurumi cats: tabby cats, calico cats, black cats, white cats, orange cats, and fluffy round cats doing daily life actions such as walking, chatting, shopping, riding scooters, taking photos, carrying tiny bags, and enjoying the city.";
     case "hamster":
       return "Main characters are cute chibi Amigurumi hamsters doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
     case "dog":
@@ -640,8 +640,8 @@ function selectedLandmarks(landmarks) {
   const clean = (landmarks || [])
     .map((item) => String(item || "").trim())
     .filter(Boolean);
-  if (clean.length <= 3) return clean;
-  return [clean[0], clean[1], clean[2]];
+  if (clean.length <= 5) return clean;
+  return [clean[0], clean[1], clean[2], clean[3], clean[4]];
 }
 
 async function generateImage(env, prompt) {
