@@ -1094,12 +1094,12 @@ class PromptBuilder {
             + weather.effect + ".\n\n"
             + Rules.timeTemplate(scene.timePeriod) + ".\n\n"
             + "Cute Amigurumi people walking and chatting.\n\n"
-            + "Place one clear city name label in a pale open sky area, using English outside Taiwan and local text in Taiwan.\n\n"
-            + "The city label should look embroidered with yarn, be large enough to read, and must not overlap buildings, people, clouds, rain, or lock-screen widgets.\n\n"
+            + "Keep the upper sky area light, calm, open, and visually clean so phone time, date, and status widgets do not conflict.\n\n"
+            + "Do not write the city name anywhere in the image. Do not place a large title, header text, or location label in the sky.\n\n"
             + "Do not draw phone UI, clock, date, temperature text, status bar, widgets, or app labels.\n\n"
             + "Leave enough upper blank space so the Android lock screen can show its built-in clock and date without conflict.\n\n"
             + "Crochet " + scene.weather.toLowerCase(Locale.US) + " weather icon.\n\n"
-            + "No extra readable text beyond the city name.\n\n"
+            + "No large readable headline text.\n\n"
             + "9:16 portrait wallpaper.";
     }
 }
@@ -1165,13 +1165,11 @@ class LocalWallpaperRenderer {
     static void drawFrame(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
         drawBackground(canvas, width, height, scene);
         drawYarnSky(canvas, width, height, scene, frame);
-        drawCityLabelOverlay(canvas, width, height, scene);
         drawCity(canvas, width, height, scene, frame);
     }
 
     static void drawLoadingFrame(Canvas canvas, int width, int height, WeatherScene scene, long frame) {
         drawBackground(canvas, width, height, scene);
-        drawCityLabelOverlay(canvas, width, height, scene);
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         paint.setTextAlign(Paint.Align.CENTER);
         paint.setTextSize(Math.max(34f, width * 0.042f));
@@ -1265,18 +1263,6 @@ class LocalWallpaperRenderer {
     }
 
     static void drawCityLabelOverlay(Canvas canvas, int width, int height, WeatherScene scene) {
-        String label = "Taiwan".equals(scene.country)
-            ? scene.cityLocal.replace(" City", "")
-            : scene.cityEnglish;
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD));
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(Math.max(62f, width * 0.085f));
-        paint.setColor(textPaintColor(scene));
-        paint.setShadowLayer(12f, 0f, 3f, Color.argb(135, 38, 30, 24));
-        Paint.FontMetrics metrics = paint.getFontMetrics();
-        float y = height * 0.14f - (metrics.ascent + metrics.descent) / 2f;
-        canvas.drawText(label, width * 0.50f, y, paint);
     }
 
     private static int textPaintColor(WeatherScene scene) {

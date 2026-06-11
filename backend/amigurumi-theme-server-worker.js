@@ -12,7 +12,7 @@ const WEATHER_MAP = {
   Dust: "Foggy",
   Sand: "Foggy"
 };
-const PROMPT_VERSION = "open-sky-diorama-character-v4";
+const PROMPT_VERSION = "open-sky-diorama-no-city-label-v5";
 const DAILY_PERIODS = ["Morning", "Noon", "Sunset", "Evening", "DeepNight"];
 
 export default {
@@ -371,7 +371,6 @@ function readScene(url) {
 
 function buildPrompt(scene) {
   const isTaiwan = scene.country === "Taiwan";
-  const label = isTaiwan ? scene.cityLocal : scene.city;
   const landmarks = selectedLandmarks(scene.landmarks);
   const character = characterPrompt(scene.character);
   return [
@@ -387,13 +386,13 @@ function buildPrompt(scene) {
     character,
     "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.",
     "Add subtle visual motion cues suitable for a live wallpaper background: drifting crochet clouds, tiny boats on water, scooter movement, walking poses, fluttering shop awnings, falling rain or snow when weather requires it.",
-    "Keep the upper sky area light, calm, and visually clean so phone time, date, and status widgets do not conflict.",
-    `Place one clear city name label in the pale open sky area: ${label}.`,
-    "The city label should look embroidered with yarn, large enough to read, centered or upper-center, and must not overlap buildings, people, clouds, rain, or lock-screen widgets.",
+    "Keep the upper sky area light, calm, open, and visually clean so phone time, date, and status widgets do not conflict.",
+    "Do not write the city name anywhere in the image.",
+    "Do not place a large title, header text, or location label in the sky.",
     "Use a legible high-contrast but gentle yarn color that remains visible on the lighter sky without clashing with the crochet artwork.",
-    isTaiwan ? "Use Traditional Chinese styling for local shop signs." : "Use English for the city name label.",
+    isTaiwan ? "Small local shop signs may use Traditional Chinese styling only when they are natural environmental details." : "Small local shop signs may use local language styling only when they are natural environmental details.",
     "Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets.",
-    "No extra readable text beyond the city name label."
+    "No large readable headline text."
   ].join("\n");
 }
 
