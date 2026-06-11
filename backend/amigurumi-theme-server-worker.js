@@ -12,7 +12,7 @@ const WEATHER_MAP = {
   Dust: "Foggy",
   Sand: "Foggy"
 };
-const PROMPT_VERSION = "open-sky-diorama-no-city-label-v5";
+const PROMPT_VERSION = "wide-city-diorama-7-9-landmarks-v6";
 const DAILY_PERIODS = ["Morning", "Noon", "Sunset", "Evening", "DeepNight"];
 
 export default {
@@ -583,12 +583,13 @@ function buildPrompt(scene) {
   return [
     "Create a premium 9:16 Android live wallpaper background in miniature Amigurumi crochet diorama style.",
     "Match this art direction: bright open sky, airy daylight, crisp dimensional crochet stitches, miniature toy-city depth, clean composition, charming handcrafted detail, soft warm color, and a lively travel-postcard feeling.",
+    "Use a distant wide-angle establishing view from a slightly elevated viewpoint, like looking across a miniature city diorama, so multiple landmarks can appear together without tight cropping.",
     "Avoid flat felt texture, muddy gray haze, dull low-contrast lighting, oversized text, cropped faces, empty foreground, and simple blocky buildings.",
     "Use only city or county-level geography. Do not depict districts, townships, streets, neighborhoods, or overly specific local areas.",
     `City: ${scene.city}. Country: ${scene.country}.`,
     `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${landmarks.join(", ")}.`,
-    "Use 3-5 landmark anchors as recognizable city signals while keeping the composition clean and not overcrowded.",
+    "Use 7-9 landmark anchors as recognizable city signals, arranged at different depths across the city panorama while keeping the composition clean and not overcrowded.",
     "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.",
     character,
     "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.",
@@ -640,8 +641,8 @@ function selectedLandmarks(landmarks) {
   const clean = (landmarks || [])
     .map((item) => String(item || "").trim())
     .filter(Boolean);
-  if (clean.length <= 5) return clean;
-  return [clean[0], clean[1], clean[2], clean[3], clean[4]];
+  if (clean.length <= 9) return clean;
+  return clean.slice(0, 9);
 }
 
 async function generateImage(env, prompt) {
