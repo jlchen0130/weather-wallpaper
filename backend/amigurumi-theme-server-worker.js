@@ -22,6 +22,7 @@ export default {
     if (env.WALLPAPER_BUCKET) {
       ctx.waitUntil(cleanupExpired(env));
     }
+    if (url.pathname === "/admin/upload") return uploadPage(request, env);
     if (url.pathname.startsWith("/files/")) return serveFile(url, env);
     if (url.searchParams.has("lat") && url.searchParams.has("lon") && !url.searchParams.has("city")) {
       return weather(request, env);
@@ -31,7 +32,8 @@ export default {
       service: "amigurumi-theme-server",
       routes: [
         "/?lat=22.6273&lon=120.3014&units=metric",
-        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Noon"
+        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Noon",
+        "/admin/upload"
       ]
     });
   },
@@ -43,6 +45,125 @@ export default {
     ctx.waitUntil(refreshTrackedCities(env));
   }
 };
+
+async function uploadPage(request, env) {
+  if (!env.WALLPAPER_BUCKET) return json({ error: "WALLPAPER_BUCKET R2 binding is not configured" }, 500);
+  if (!env.MANUAL_UPLOAD_TOKEN) return json({ error: "MANUAL_UPLOAD_TOKEN is not configured" }, 500);
+  const url = new URL(request.url);
+  if (request.method === "GET") return uploadForm();
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const form = await request.formData();
+  if (!authorized(request, url, env, stringValue(form.get("token"), ""))) return json({ error: "Unauthorized" }, 401);
+  const image = form.get("image");
+  if (!image || typeof image === "string" || !image.arrayBuffer) {
+    return json({ error: "Missing image file" }, 400);
+  }
+  const contentType = image.type || "application/octet-stream";
+  if (!["image/png", "image/jpeg", "image/webp"].includes(contentType)) {
+    return json({ error: "Only PNG, JPEG, or WebP images are supported" }, 400);
+  }
+
+  const scene = {
+    city: stringValue(form.get("city"), "Kaohsiung"),
+    cityLocal: stringValue(form.get("cityLocal"), stringValue(form.get("city"), "Kaohsiung")),
+    country: stringValue(form.get("country"), "Taiwan"),
+    date: stringValue(form.get("date"), new Date().toISOString().slice(0, 10)),
+    weather: normalizeWeather(stringValue(form.get("weather"), "Cloudy")),
+    period: normalizePeriod(stringValue(form.get("period"), "Noon")),
+    character: normalizeCharacter(stringValue(form.get("character"), "person")),
+    tempMin: stringValue(form.get("tempMin"), "27"),
+    tempMax: stringValue(form.get("tempMax"), "32"),
+    landmarks: stringValue(form.get("landmarks"), "manual upload")
+      .split("|")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  };
+
+  const result = await storeUploadedWallpaper(env, url, scene, image, contentType);
+  if ((request.headers.get("accept") || "").includes("text/html")) {
+    return html(`<!doctype html><meta charset="utf-8"><title>Uploaded</title><body style="font-family:sans-serif;padding:24px"><h1>Uploaded</h1><p>${escapeHtml(result.file_name)}</p><p><a href="${result.image_url}">Open image</a></p><p><a href="/admin/upload">Upload another</a></p></body>`);
+  }
+  return json(result);
+}
+
+function uploadForm() {
+  return html(`<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manual Wallpaper Upload</title>
+<body style="font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:720px;margin:32px auto;padding:0 18px;line-height:1.5">
+<h1>手動上傳桌布</h1>
+<form method="post" enctype="multipart/form-data">
+  <p><label>Upload token<br><input name="token" type="password" required style="width:100%;padding:10px"></label></p>
+  <p><label>Image<br><input name="image" type="file" accept="image/png,image/jpeg,image/webp" required></label></p>
+  <p><label>City<br><input name="city" value="Kaohsiung" required style="width:100%;padding:10px"></label></p>
+  <p><label>City local<br><input name="cityLocal" value="Kaohsiung" style="width:100%;padding:10px"></label></p>
+  <p><label>Country<br><input name="country" value="Taiwan" style="width:100%;padding:10px"></label></p>
+  <p><label>Date<br><input name="date" type="date" style="width:100%;padding:10px"></label></p>
+  <p><label>Weather<br><select name="weather" style="width:100%;padding:10px"><option>Sunny</option><option selected>Cloudy</option><option>Rainy</option><option>Snowy</option><option>Foggy</option></select></label></p>
+  <p><label>Period<br><select name="period" style="width:100%;padding:10px"><option>Morning</option><option selected>Noon</option><option>Sunset</option><option>Evening</option><option>DeepNight</option></select></label></p>
+  <p><label>Character<br><select name="character" style="width:100%;padding:10px"><option value="person">人</option><option value="cat">貓</option><option value="hamster">倉鼠</option><option value="dog">狗</option><option value="parrot">鸚鵡</option></select></label></p>
+  <p><label>Temperature min<br><input name="tempMin" value="27" inputmode="numeric" style="width:100%;padding:10px"></label></p>
+  <p><label>Temperature max<br><input name="tempMax" value="32" inputmode="numeric" style="width:100%;padding:10px"></label></p>
+  <p><label>Landmarks, separated by |<br><input name="landmarks" value="85 Sky Tower|Love River|Pier-2 Art Center" style="width:100%;padding:10px"></label></p>
+  <p><button style="padding:12px 18px">Upload to R2</button></p>
+</form>
+</body>
+</html>`);
+}
+
+async function storeUploadedWallpaper(env, url, scene, image, contentType) {
+  const citySlug = slug(scene.city);
+  const sequence = await nextSequence(env, citySlug, scene.date);
+  const extension = extensionFor(contentType);
+  const fileName = `${citySlug}_${scene.date.replaceAll("-", "")}_${sequence}${extension}`;
+  const objectKey = `wallpapers/${citySlug}/${fileName}`;
+  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, "manual-upload"].join("|");
+  const bytes = await image.arrayBuffer();
+  await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
+    httpMetadata: { contentType },
+    customMetadata: {
+      city: scene.city,
+      country: scene.country,
+      weather: scene.weather,
+      period: scene.period,
+      character: scene.character,
+      date: scene.date,
+      sceneKey,
+      source: "manual-upload"
+    }
+  });
+
+  const manifest = {
+    file_name: fileName,
+    object_key: objectKey,
+    city: scene.city,
+    country: scene.country,
+    weather: scene.weather,
+    period: scene.period,
+    character: scene.character,
+    date: scene.date,
+    scene_key: sceneKey,
+    source: "manual-upload",
+    animation: {
+      type: "android-live-wallpaper-overlay",
+      weather: scene.weather,
+      period: scene.period
+    }
+  };
+  const manifestKey = `manifests/${citySlug}/manual-${hash(sceneKey + "|" + fileName)}.json`;
+  await env.WALLPAPER_BUCKET.put(manifestKey, JSON.stringify(manifest), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" }
+  });
+  return {
+    ...manifest,
+    image_url: fileUrl(url, objectKey),
+    reused: false,
+    expires_at: expiresAt(new Date(), env)
+  };
+}
 
 async function weather(request, env) {
   const url = new URL(request.url);
@@ -402,6 +523,18 @@ function normalizeCharacter(value) {
   return "person";
 }
 
+function normalizeWeather(value) {
+  const clean = String(value || "Cloudy").trim();
+  if (["Sunny", "Cloudy", "Rainy", "Snowy", "Foggy"].includes(clean)) return clean;
+  return WEATHER_MAP[clean] || "Cloudy";
+}
+
+function normalizePeriod(value) {
+  const clean = String(value || "Noon").trim();
+  if (DAILY_PERIODS.includes(clean)) return clean;
+  return "Noon";
+}
+
 function characterPrompt(value) {
   switch (normalizeCharacter(value)) {
     case "cat":
@@ -455,6 +588,54 @@ async function nextSequence(env, citySlug, date) {
 
 function fileUrl(url, objectKey) {
   return `${url.origin}/files/${encodeURIComponent(objectKey)}`;
+}
+
+function authorized(request, url, env, formToken = "") {
+  const header = request.headers.get("authorization") || "";
+  const bearer = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+  const query = url.searchParams.get("token") || "";
+  return safeEqual(bearer, env.MANUAL_UPLOAD_TOKEN)
+    || safeEqual(query, env.MANUAL_UPLOAD_TOKEN)
+    || safeEqual(formToken, env.MANUAL_UPLOAD_TOKEN);
+}
+
+function safeEqual(a, b) {
+  a = String(a || "");
+  b = String(b || "");
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function stringValue(value, fallback) {
+  if (value == null || typeof value !== "string") return fallback;
+  const clean = value.trim();
+  return clean ? clean : fallback;
+}
+
+function extensionFor(contentType) {
+  if (contentType === "image/jpeg") return ".jpg";
+  if (contentType === "image/webp") return ".webp";
+  return ".png";
+}
+
+function html(markup, status = 200) {
+  return new Response(markup, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store"
+    }
+  });
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function slug(value) {
