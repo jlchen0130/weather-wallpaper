@@ -118,7 +118,7 @@ async function storeUploadedWallpaper(env, url, scene, image, contentType) {
   const citySlug = slug(scene.city);
   const sequence = await nextSequence(env, citySlug, scene.date);
   const extension = extensionFor(contentType);
-  const fileName = `${citySlug}_${scene.date.replaceAll("-", "")}_${sequence}${extension}`;
+  const fileName = wallpaperFileName(citySlug, scene.date, scene.character, sequence, extension);
   const objectKey = `wallpapers/${citySlug}/${fileName}`;
   const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, "manual-upload"].join("|");
   const bytes = await image.arrayBuffer();
@@ -310,7 +310,7 @@ async function createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, man
 
 async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey) {
   const sequence = await nextSequence(env, citySlug, scene.date);
-  const fileName = `${citySlug}_${scene.date.replaceAll("-", "")}_${sequence}.png`;
+  const fileName = wallpaperFileName(citySlug, scene.date, scene.character, sequence, ".png");
   const objectKey = `wallpapers/${citySlug}/${fileName}`;
   const prompt = buildPrompt(scene);
   const imageBytes = await generateImage(env, prompt);
@@ -671,6 +671,10 @@ async function nextSequence(env, citySlug, date) {
   const listed = await env.WALLPAPER_BUCKET.list({ prefix });
   const next = String((listed.objects?.length || 0) + 1).padStart(3, "0");
   return next;
+}
+
+function wallpaperFileName(citySlug, date, character, sequence, extension) {
+  return `${citySlug}_${date.replaceAll("-", "")}_${normalizeCharacter(character)}_${sequence}${extension}`;
 }
 
 function fileUrl(url, objectKey) {
