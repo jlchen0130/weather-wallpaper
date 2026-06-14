@@ -260,6 +260,28 @@ async function ensureWallpaper(env, url, scene, options = {}) {
         limited_reason: "client requests reuse latest wallpaper; scheduled jobs create new scenes"
       };
     }
+    const anyCharacterLatest = await latestCityWallpaper(env, url, citySlug);
+    if (anyCharacterLatest) {
+      return {
+        ...anyCharacterLatest,
+        scene_key: sceneKey,
+        requested_weather: scene.weather,
+        requested_period: scene.period,
+        requested_character: scene.character,
+        reused: true,
+        pending_refresh: false,
+        limited_reason: "requested character wallpaper not found; reused latest city wallpaper"
+      };
+    }
+    return {
+      error: "no wallpaper available for this city yet",
+      scene_key: sceneKey,
+      requested_weather: scene.weather,
+      requested_period: scene.period,
+      requested_character: scene.character,
+      reused: false,
+      pending_refresh: false
+    };
   }
 
   return createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, manifestKey);

@@ -564,8 +564,14 @@ public class MainActivity extends Activity {
                 WeatherScene scene = SceneResolver.resolve(this);
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
                 if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
-                    applyCachedWallpaper("Status: connection error. Keeping the last static wallpaper. " + ServerWallpaperClient.lastError(), true);
-                    return;
+                    Bitmap cached = WallpaperStore.load(this);
+                    if (cached != null) {
+                        bitmap = cached;
+                        status("Status: server unavailable. Applying cached wallpaper. " + ServerWallpaperClient.lastError());
+                    } else {
+                        bitmap = LocalWallpaperRenderer.render(scene);
+                        status("Status: server unavailable. Applying local fallback wallpaper. " + ServerWallpaperClient.lastError());
+                    }
                 }
                 if (bitmap == null) bitmap = LocalWallpaperRenderer.render(scene);
                 WallpaperStore.save(this, bitmap);
@@ -933,6 +939,10 @@ class ServerWallpaperClient {
                 + "&tempMax=" + scene.tempMax
                 + "&landmarks=" + enc(join(scene.landmarks));
             JSONObject response = new JSONObject(Http.get(new URL(requestUrl), null));
+            if (response.has("error")) {
+                lastError = response.optString("error", "Server returned an error.");
+                return null;
+            }
             String fileName = response.optString("file_name", "");
             String imageUrl = response.optString("image_url", "");
             Bitmap bitmap = null;
