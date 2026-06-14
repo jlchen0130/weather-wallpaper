@@ -97,8 +97,7 @@ public class DynamicWallpaperService extends WallpaperService {
         private void refreshSceneIfNeeded(boolean force) {
             long now = System.currentTimeMillis();
             SharedPreferences prefs = getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-            int minutes = AppConfig.parseMinutes(prefs.getString(AppConfig.KEY_UPDATE_MINUTES, "30"));
-            long interval = background == null ? 30L * 1000L : minutes * 60L * 1000L;
+            long interval = background == null ? 30L * 1000L : Rules.nextPeriodCheckDelayMillis();
             if (!force && now - lastRefresh < interval) return;
             lastRefresh = now;
 
@@ -111,7 +110,7 @@ public class DynamicWallpaperService extends WallpaperService {
                     if (background == null && latest != null) background = latest;
                     scene = next;
                     if (!newKey.equals(oldKey) || background == null) {
-                        Bitmap generated = generateBackground(next, prefs);
+                        Bitmap generated = fetchRequiredWallpaper(next);
                         if (generated != null) {
                             background = generated;
                             WallpaperStore.save(DynamicWallpaperService.this, generated);
@@ -132,7 +131,7 @@ public class DynamicWallpaperService extends WallpaperService {
             });
         }
 
-        private Bitmap generateBackground(WeatherScene next, SharedPreferences prefs) {
+        private Bitmap fetchRequiredWallpaper(WeatherScene next) {
             Bitmap server = ServerWallpaperClient.fetchOrCreate(DynamicWallpaperService.this, next);
             if (server != null) return server;
             if (ServerWallpaperClient.isConfigured(DynamicWallpaperService.this)) {

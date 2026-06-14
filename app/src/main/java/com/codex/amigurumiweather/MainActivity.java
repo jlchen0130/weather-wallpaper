@@ -1104,7 +1104,7 @@ class WeatherScene {
     }
 
     String sceneKey() {
-        return cityEnglish + "|" + country + "|" + weather + "|" + timePeriod;
+        return cityEnglish + "|" + country + "|" + date + "|" + weather + "|" + timePeriod;
     }
 
     WeatherScene withLanguage(String value) {
@@ -1216,17 +1216,33 @@ class Rules {
         WEATHER.put("Foggy", new WeatherTemplate("felt fog", "soft dreamy atmosphere"));
         TIME.put("Morning", "soft sunrise");
         TIME.put("Noon", "bright warm noon daylight");
+        TIME.put("Afternoon", "mellow warm afternoon light");
         TIME.put("Sunset", "orange pink sky");
-        TIME.put("Evening", "warm street lights");
-        TIME.put("DeepNight", "deep blue knitted sky");
+        TIME.put("Night", "warm street lights");
+        TIME.put("Midnight", "deep blue quiet sky");
     }
 
     static String getTimePeriod(int hour) {
         if (hour >= 5 && hour <= 10) return "Morning";
-        if (hour >= 11 && hour <= 14) return "Noon";
+        if (hour >= 11 && hour <= 13) return "Noon";
+        if (hour >= 14 && hour <= 16) return "Afternoon";
         if (hour >= 17 && hour <= 18) return "Sunset";
-        if (hour >= 19 && hour <= 22) return "Evening";
-        return "DeepNight";
+        if (hour >= 19 && hour <= 22) return "Night";
+        return "Midnight";
+    }
+
+    static long nextPeriodCheckDelayMillis() {
+        LocalTime now = LocalTime.now();
+        int nowSeconds = now.getHour() * 3600 + now.getMinute() * 60 + now.getSecond();
+        int[] starts = new int[] {0, 5 * 3600, 11 * 3600, 14 * 3600, 17 * 3600, 19 * 3600, 23 * 3600};
+        int next = 24 * 3600;
+        for (int start : starts) {
+            if (start > nowSeconds) {
+                next = start;
+                break;
+            }
+        }
+        return Math.max(60L * 1000L, (long) (next - nowSeconds + 10) * 1000L);
     }
 
     static WeatherTemplate weatherTemplate(String weather) {
@@ -1241,7 +1257,7 @@ class Rules {
 
     static String textColor(String weather, String period) {
         if ("Sunset".equals(period)) return "Deep Orange";
-        if ("DeepNight".equals(period)) return "Ivory White";
+        if ("Midnight".equals(period) || "Night".equals(period)) return "Ivory White";
         if ("Cloudy".equals(weather)) return "Dark Gray";
         if ("Rainy".equals(weather)) return "Cream White";
         if ("Snowy".equals(weather)) return "Camel";
@@ -1258,6 +1274,34 @@ class WeatherMapper {
         if ("Snow".equals(value)) return "Snowy";
         if (Arrays.asList("Mist", "Fog", "Haze", "Smoke", "Dust", "Sand", "Ash", "Squall", "Tornado").contains(value)) return "Foggy";
         return value;
+    }
+
+    static boolean isSunny(String value) {
+        return "Sunny".equals(value) || "\u6674".equals(value);
+    }
+
+    static boolean isRainy(String value) {
+        return "Rainy".equals(value) || hasAny(value, '\u96e8');
+    }
+
+    static boolean isSnowy(String value) {
+        return "Snowy".equals(value) || hasAny(value, '\u96ea');
+    }
+
+    static boolean isCloudy(String value) {
+        return "Cloudy".equals(value) || hasAny(value, '\u4e91', '\u9670');
+    }
+
+    static boolean isFoggy(String value) {
+        return "Foggy".equals(value) || hasAny(value, '\u96fe', '\u973e', '\u5c18', '\u6c99');
+    }
+
+    private static boolean hasAny(String value, char... chars) {
+        if (value == null) return false;
+        for (char item : chars) {
+            if (value.indexOf(item) >= 0) return true;
+        }
+        return false;
     }
 }
 
