@@ -260,11 +260,11 @@ public class MainActivity extends Activity {
         if (adminCountry.getText().toString().trim().isEmpty()) adminCountry.setText("Taiwan");
         root.addView(adminCountry);
 
-        adminWeather = spinner(new String[] {"Sunny", "Cloudy", "Rainy", "Snowy", "Foggy"}, prefs.getString("admin_weather", "Cloudy"));
+        adminWeather = spinner(new String[] {"晴", "多云", "阴", "阵雨", "雷阵雨", "雷阵雨伴有冰雹", "雨夹雪", "小雨", "中雨", "大雨", "暴雨", "大暴雨", "特大暴雨", "阵雪", "小雪", "中雪", "大雪", "暴雪", "雾", "冻雨", "沙尘暴", "小雨-中雨", "中雨-大雨", "大雨-暴雨", "暴雨-大暴雨", "大暴雨-特大暴雨", "小雪-中雪", "中雪-大雪", "大雪-暴雪", "浮尘", "扬沙", "强沙尘暴", "霾"}, prefs.getString("admin_weather", "晴"));
         root.addView(label("\u5929\u6c23"));
         root.addView(adminWeather);
 
-        adminPeriod = spinner(new String[] {"Morning", "Noon", "Sunset", "Evening", "DeepNight"}, prefs.getString("admin_period", "Noon"));
+        adminPeriod = spinner(new String[] {"Morning", "Noon", "Afternoon", "Sunset", "Night", "Midnight"}, prefs.getString("admin_period", "Noon"));
         root.addView(label("\u6642\u6bb5"));
         root.addView(adminPeriod);
 
@@ -411,19 +411,19 @@ public class MainActivity extends Activity {
         String max = adminTempMax == null ? prefs.getString("admin_temp_max", "32") : adminTempMax.getText().toString().trim();
         String landmarks = adminLandmarks == null ? prefs.getString("admin_landmarks", "85 Sky Tower|Love River|Pier-2 Art Center") : adminLandmarks.getText().toString().trim();
         String characterText = CharacterOptions.promptText(character);
-        return "Create a premium 9:16 Android live wallpaper background in miniature Amigurumi crochet diorama style.\n"
+        return "粉鉛筆畫風的手機動態桌布插畫，直式 9:16，高解析度，柔和紙張紋理，溫暖可愛的童話氛圍。\n"
+            + "Use a refined pastel pencil illustration style, soft paper grain, warm fairy-tale mood, clean depth, and delicate hand-drawn details suitable for a phone live wallpaper.\n"
             + "City: " + cleanOr(city, "Kaohsiung") + ". Country: " + cleanOr(country, "Taiwan") + ".\n"
             + "Weather: " + weather + ". Time period: " + period + ". Temperature: " + cleanOr(min, "27") + "C~" + cleanOr(max, "32") + "C.\n"
             + "Landmarks: " + cleanOr(landmarks, "85 Sky Tower|Love River|Pier-2 Art Center").replace("|", ", ") + ".\n"
-            + "Use only 2-3 landmark anchors as recognizable city signals; do not crowd the image.\n"
-            + "Art direction: bright open sky, airy daylight, crisp dimensional crochet stitches, miniature toy-city depth, clean composition, charming handcrafted detail, soft warm color, lively travel-postcard feeling.\n"
-            + "Avoid flat felt texture, muddy gray haze, dull low-contrast lighting, oversized text, cropped faces, empty foreground, simple blocky buildings.\n"
-            + "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.\n"
+            + "Background融合 8 個當地知名景點，以微縮地景與童話城市的方式自然分布，不要像拼貼。\n"
+            + "Use a distant wide-angle establishing view from a slightly elevated viewpoint, so landmarks are distributed naturally across the city scene with open sky and readable depth.\n"
+            + "If the weather is sunny and hot, show soft golden sunlight, pale blue sky, fluffy white clouds, slight heat shimmer, tree shadows, and clear highlights.\n"
             + characterText + "\n"
             + "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.\n"
-            + "Add subtle visual motion cues suitable for a live wallpaper background: drifting crochet clouds, tiny boats on water, scooter movement, walking poses, fluttering shop awnings, falling rain or snow when weather requires it.\n"
+            + "Add subtle visual motion cues suitable for a live wallpaper background: drifting clouds, tiny boats on water, walking poses, fluttering awnings, falling rain or snow when weather requires it, wind lines, sparkling highlights, and lively daily movement.\n"
             + "Keep the upper sky area light, calm, open, and visually clean for phone time/date widgets.\n"
-            + "Do not write the city name anywhere in the image. Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets. No large readable headline text.";
+            + "Avoid text, logo, watermark, phone UI, clock, date, battery, signal icons, app labels, temperature widgets, large labels, and poster-like typography.";
     }
 
     private void copyAdminPrompt() {
@@ -457,7 +457,11 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_ADMIN_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
             adminImageUri = data.getData();
-            getContentResolver().takePersistableUriPermission(adminImageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                getContentResolver().takePersistableUriPermission(adminImageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) {
+                // Some gallery providers return a readable URI without persistable permissions.
+            }
             if (adminImageStatus != null) adminImageStatus.setText("Status: image selected.");
         }
     }
@@ -707,16 +711,14 @@ class CharacterOptions {
     static final String[] LABELS = {
         "\u4eba",
         "\u8c93",
-        "\u5009\u9f20",
         "\u72d7",
-        "\u9e1a\u9d61"
+        "\u5009\u9f20/\u9f8d\u8c93"
     };
     private static final String[] VALUES = {
         "person",
         "cat",
-        "hamster",
         "dog",
-        "parrot"
+        "hamster_chinchilla"
     };
 
     static int indexOf(String value) {
@@ -733,18 +735,15 @@ class CharacterOptions {
 
     static String promptText(String value) {
         if ("cat".equals(value)) {
-            return "Main characters are cute chibi Amigurumi cats doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+            return "Main characters are varied cute Q-version cats: tabby cats, calico cats, black cats, white cats, orange cats, and fluffy round cats doing daily life actions.";
         }
-        if ("hamster".equals(value)) {
-            return "Main characters are cute chibi Amigurumi hamsters doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+        if ("hamster_chinchilla".equals(value) || "hamster".equals(value)) {
+            return "Main characters are cute Q-version hamsters and chinchillas with round bodies, soft ears, tiny bags, and everyday city-life actions.";
         }
         if ("dog".equals(value)) {
-            return "Main characters are cute chibi Amigurumi dogs doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+            return "Main characters are cute Q-version dogs of varied small breeds doing daily life actions, with friendly expressions and playful movement.";
         }
-        if ("parrot".equals(value)) {
-            return "Main characters are cute chibi Amigurumi parrots doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
-        }
-        return "Main characters are cute chibi Amigurumi people doing daily life actions: commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.";
+        return "Main character is a cute Q-version girl with a round face and big eyes, wearing fresh summer clothes, smiling in the foreground, holding a small fan and an iced drink, joined by a few friendly city residents in daily-life actions.";
     }
 }
 

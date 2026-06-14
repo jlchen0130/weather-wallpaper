@@ -8,9 +8,8 @@ bucket_name = "amigurumi-weather-wallpapers"
 
 [vars]
 OPENAI_IMAGE_MODEL = "gpt-image-1"
-WALLPAPER_RETENTION_HOURS = "24"
-MAX_DAILY_GENERATIONS_PER_CITY = "5"
+MAX_DAILY_GENERATIONS_PER_CITY = "6"
 PUBLIC_WORKER_ORIGIN = "https://amigurumi-weather-theme-server.wemmei0130.workers.dev"
 
 [triggers]
-crons = ["0 15,22 * * *", "0 4,9,12 * * *"]
+crons = ["0 4,7,9,12,16,22 * * *"]

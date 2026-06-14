@@ -1,27 +1,46 @@
 const WEATHER_MAP = {
-  Clear: "Sunny",
-  Clouds: "Cloudy",
-  Rain: "Rainy",
-  Drizzle: "Rainy",
-  Thunderstorm: "Rainy",
-  Snow: "Snowy",
-  Mist: "Foggy",
-  Fog: "Foggy",
-  Haze: "Foggy",
-  Smoke: "Foggy",
-  Dust: "Foggy",
-  Sand: "Foggy"
+  Clear: "晴",
+  Clouds: "多云",
+  Rain: "中雨",
+  Drizzle: "小雨",
+  Thunderstorm: "雷阵雨",
+  Snow: "中雪",
+  Mist: "雾",
+  Fog: "雾",
+  Haze: "霾",
+  Smoke: "霾",
+  Dust: "浮尘",
+  Sand: "扬沙"
 };
-const PROMPT_VERSION = "wide-city-diorama-7-9-landmarks-v6";
-const DAILY_PERIODS = ["Morning", "Noon", "Sunset", "Evening", "DeepNight"];
+const PROMPT_VERSION = "pastel-pencil-festival-weather-v7";
+const DAILY_PERIODS = ["Morning", "Noon", "Afternoon", "Sunset", "Night", "Midnight"];
+const SUPPORTED_WEATHERS = [
+  "晴", "多云", "阴", "阵雨", "雷阵雨", "雷阵雨伴有冰雹", "雨夹雪", "小雨", "中雨", "大雨", "暴雨", "大暴雨", "特大暴雨",
+  "阵雪", "小雪", "中雪", "大雪", "暴雪", "雾", "冻雨", "沙尘暴", "小雨-中雨", "中雨-大雨", "大雨-暴雨",
+  "暴雨-大暴雨", "大暴雨-特大暴雨", "小雪-中雪", "中雪-大雪", "大雪-暴雪", "浮尘", "扬沙", "强沙尘暴", "霾",
+  "Sunny", "Cloudy", "Rainy", "Snowy", "Foggy"
+];
+const WEATHER_ALIASES = {
+  Sunny: "晴",
+  Clear: "晴",
+  Cloudy: "多云",
+  Clouds: "多云",
+  Rainy: "中雨",
+  Rain: "中雨",
+  Drizzle: "小雨",
+  Thunderstorm: "雷阵雨",
+  Snowy: "中雪",
+  Snow: "中雪",
+  Foggy: "雾",
+  Fog: "雾",
+  Mist: "雾",
+  Haze: "霾"
+};
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return cors();
-    if (env.WALLPAPER_BUCKET) {
-      ctx.waitUntil(cleanupExpired(env));
-    }
     if (url.pathname === "/admin/upload") return uploadPage(request, env);
     if (url.pathname.startsWith("/files/")) return serveFile(url, env);
     if (url.searchParams.has("lat") && url.searchParams.has("lon") && !url.searchParams.has("city")) {
@@ -39,9 +58,6 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    if (env.WALLPAPER_BUCKET) {
-      ctx.waitUntil(cleanupExpired(env));
-    }
     ctx.waitUntil(refreshTrackedCities(env));
   }
 };
@@ -72,6 +88,7 @@ async function uploadPage(request, env) {
     weather: normalizeWeather(stringValue(form.get("weather"), "Cloudy")),
     period: normalizePeriod(stringValue(form.get("period"), "Noon")),
     character: normalizeCharacter(stringValue(form.get("character"), "person")),
+    festival: normalizeFestival(stringValue(form.get("festival"), "")),
     tempMin: stringValue(form.get("tempMin"), "27"),
     tempMax: stringValue(form.get("tempMax"), "32"),
     landmarks: stringValue(form.get("landmarks"), "manual upload")
@@ -88,6 +105,9 @@ async function uploadPage(request, env) {
 }
 
 function uploadForm() {
+  const weatherOptions = SUPPORTED_WEATHERS.slice(0, 33)
+    .map((item) => `<option${item === "多云" ? " selected" : ""}>${escapeHtml(item)}</option>`)
+    .join("");
   return html(`<!doctype html>
 <html lang="zh-Hant">
 <meta charset="utf-8">
@@ -102,9 +122,10 @@ function uploadForm() {
   <p><label>City local<br><input name="cityLocal" value="Kaohsiung" style="width:100%;padding:10px"></label></p>
   <p><label>Country<br><input name="country" value="Taiwan" style="width:100%;padding:10px"></label></p>
   <p><label>Date<br><input name="date" type="date" style="width:100%;padding:10px"></label></p>
-  <p><label>Weather<br><select name="weather" style="width:100%;padding:10px"><option>Sunny</option><option selected>Cloudy</option><option>Rainy</option><option>Snowy</option><option>Foggy</option></select></label></p>
-  <p><label>Period<br><select name="period" style="width:100%;padding:10px"><option>Morning</option><option selected>Noon</option><option>Sunset</option><option>Evening</option><option>DeepNight</option></select></label></p>
-  <p><label>Character<br><select name="character" style="width:100%;padding:10px"><option value="person">人</option><option value="cat">貓</option><option value="hamster">倉鼠</option><option value="dog">狗</option><option value="parrot">鸚鵡</option></select></label></p>
+  <p><label>Festival, blank for none<br><input name="festival" placeholder="小暑" style="width:100%;padding:10px"></label></p>
+  <p><label>Weather<br><select name="weather" style="width:100%;padding:10px">${weatherOptions}</select></label></p>
+  <p><label>Period<br><select name="period" style="width:100%;padding:10px"><option>Morning</option><option selected>Noon</option><option>Afternoon</option><option>Sunset</option><option>Night</option><option>Midnight</option></select></label></p>
+  <p><label>Character<br><select name="character" style="width:100%;padding:10px"><option value="person">人</option><option value="cat">貓</option><option value="dog">狗</option><option value="hamster_chinchilla">倉鼠/龍貓</option></select></label></p>
   <p><label>Temperature min<br><input name="tempMin" value="27" inputmode="numeric" style="width:100%;padding:10px"></label></p>
   <p><label>Temperature max<br><input name="tempMax" value="32" inputmode="numeric" style="width:100%;padding:10px"></label></p>
   <p><label>Landmarks, separated by |<br><input name="landmarks" value="85 Sky Tower|Love River|Pier-2 Art Center" style="width:100%;padding:10px"></label></p>
@@ -116,11 +137,10 @@ function uploadForm() {
 
 async function storeUploadedWallpaper(env, url, scene, image, contentType) {
   const citySlug = slug(scene.city);
-  const sequence = await nextSequence(env, citySlug, scene.date);
   const extension = extensionFor(contentType);
-  const fileName = wallpaperFileName(citySlug, scene.date, scene.character, sequence, extension);
-  const objectKey = `wallpapers/${citySlug}/${fileName}`;
-  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, "manual-upload"].join("|");
+  const fileName = wallpaperFileName(scene, extension);
+  const objectKey = wallpaperObjectKey(scene, fileName);
+  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, scene.festival || "", "manual-upload"].join("|");
   const bytes = await image.arrayBuffer();
   await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
     httpMetadata: { contentType },
@@ -130,6 +150,7 @@ async function storeUploadedWallpaper(env, url, scene, image, contentType) {
       weather: scene.weather,
       period: scene.period,
       character: scene.character,
+      festival: scene.festival || "",
       date: scene.date,
       sceneKey,
       source: "manual-upload"
@@ -144,6 +165,7 @@ async function storeUploadedWallpaper(env, url, scene, image, contentType) {
     weather: scene.weather,
     period: scene.period,
     character: scene.character,
+    festival: scene.festival || "",
     date: scene.date,
     scene_key: sceneKey,
     source: "manual-upload",
@@ -153,7 +175,7 @@ async function storeUploadedWallpaper(env, url, scene, image, contentType) {
       period: scene.period
     }
   };
-  const manifestKey = `manifests/${citySlug}/manual-${hash(sceneKey + "|" + fileName)}.json`;
+  const manifestKey = manifestObjectKey(scene, citySlug, "manual-" + hash(sceneKey + "|" + fileName));
   await env.WALLPAPER_BUCKET.put(manifestKey, JSON.stringify(manifest), {
     httpMetadata: { contentType: "application/json; charset=utf-8" }
   });
@@ -161,7 +183,7 @@ async function storeUploadedWallpaper(env, url, scene, image, contentType) {
     ...manifest,
     image_url: fileUrl(url, objectKey),
     reused: false,
-    expires_at: expiresAt(new Date(), env)
+    expires_at: null
   };
 }
 
@@ -207,27 +229,26 @@ async function wallpaper(request, env, ctx) {
 
 async function ensureWallpaper(env, url, scene, options = {}) {
   const citySlug = slug(scene.city);
-  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, PROMPT_VERSION].join("|");
-  const manifestKey = `manifests/${citySlug}/${hash(sceneKey)}.json`;
+  const sceneKey = [citySlug, scene.country, scene.date, scene.weather, scene.period, scene.character, scene.festival || "", PROMPT_VERSION].join("|");
+  const manifestKey = manifestObjectKey(scene, citySlug, hash(sceneKey));
   const existing = options.force ? null : await env.WALLPAPER_BUCKET.get(manifestKey);
   if (existing) {
     const manifest = await existing.json();
     const existingImage = await env.WALLPAPER_BUCKET.get(manifest.object_key);
-    if (!existingImage || isExpired(existingImage.uploaded, env)) {
+    if (!existingImage) {
       await env.WALLPAPER_BUCKET.delete(manifestKey);
-      if (existingImage) await env.WALLPAPER_BUCKET.delete(manifest.object_key);
     } else {
       return {
         ...manifest,
         image_url: fileUrl(url, manifest.object_key),
         reused: true,
-        expires_at: expiresAt(existingImage.uploaded, env)
+        expires_at: null
       };
     }
   }
 
   if (options.allowLatest) {
-    const latest = await latestCityWallpaper(env, url, citySlug);
+    const latest = await latestCityWallpaper(env, url, citySlug, scene.character);
     if (latest) {
       return {
         ...latest,
@@ -245,7 +266,7 @@ async function ensureWallpaper(env, url, scene, options = {}) {
 }
 
 async function createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, manifestKey) {
-  const latest = await latestCityWallpaper(env, url, citySlug);
+  const latest = await latestCityWallpaper(env, url, citySlug, scene.character);
   const lockKey = `locks/${citySlug}/${hash(sceneKey)}.lock`;
   const lock = await env.WALLPAPER_BUCKET.get(lockKey);
   if (lock && !isLockExpired(lock.uploaded)) {
@@ -309,9 +330,8 @@ async function createWallpaperIfAllowed(env, url, scene, citySlug, sceneKey, man
 }
 
 async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey) {
-  const sequence = await nextSequence(env, citySlug, scene.date);
-  const fileName = wallpaperFileName(citySlug, scene.date, scene.character, sequence, ".png");
-  const objectKey = `wallpapers/${citySlug}/${fileName}`;
+  const fileName = wallpaperFileName(scene, ".png");
+  const objectKey = wallpaperObjectKey(scene, fileName);
   const prompt = buildPrompt(scene);
   const imageBytes = await generateImage(env, prompt);
   await env.WALLPAPER_BUCKET.put(objectKey, imageBytes, {
@@ -322,6 +342,7 @@ async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey)
       weather: scene.weather,
       period: scene.period,
       character: scene.character,
+      festival: scene.festival || "",
       date: scene.date,
       sceneKey
     }
@@ -335,6 +356,7 @@ async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey)
     weather: scene.weather,
     period: scene.period,
     character: scene.character,
+    festival: scene.festival || "",
     date: scene.date,
     scene_key: sceneKey,
     animation: {
@@ -351,17 +373,20 @@ async function createWallpaper(env, url, scene, citySlug, sceneKey, manifestKey)
     ...manifest,
     image_url: fileUrl(url, objectKey),
     reused: false,
-    expires_at: expiresAt(new Date(), env)
+    expires_at: null
   };
 }
 
-async function latestCityWallpaper(env, url, citySlug) {
+async function latestCityWallpaper(env, url, citySlug, character) {
   const listed = await env.WALLPAPER_BUCKET.list({
-    prefix: `wallpapers/${citySlug}/`,
-    limit: 100
+    prefix: character ? `wallpapers/${characterFolder(character)}/` : "wallpapers/",
+    limit: 1000
   });
   const objects = (listed.objects || [])
-    .filter((object) => !isExpired(object.uploaded, env))
+    .filter((object) => {
+      const metadata = object.customMetadata || {};
+      return slug(metadata.city || "") === citySlug;
+    })
     .sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime());
   if (!objects.length) return null;
   const object = objects[0];
@@ -375,9 +400,10 @@ async function latestCityWallpaper(env, url, citySlug) {
     weather: metadata.weather || "",
     period: metadata.period || "",
     character: metadata.character || "person",
+    festival: metadata.festival || "",
     date: metadata.date || "",
     image_url: fileUrl(url, object.key),
-    expires_at: expiresAt(object.uploaded, env)
+    expires_at: null
   };
 }
 
@@ -401,6 +427,7 @@ async function refreshTrackedCities(env) {
         tempMax: String(Math.round(weatherInfo.temp_max)),
         landmarks: city.landmarks || ["central station", "old town market", "city park"]
       };
+      scene.festival = festivalFor(scene.country, scene.date);
       await ensureWallpaper(env, url, scene);
     } catch (error) {
       console.log(`tracked city refresh failed: ${city.city}: ${error.message}`);
@@ -475,10 +502,11 @@ function todayForOffset(offset) {
 function timePeriodForOffset(offset) {
   const hour = shiftedDate(offset).getUTCHours();
   if (hour >= 5 && hour <= 10) return "Morning";
-  if (hour >= 11 && hour <= 14) return "Noon";
+  if (hour >= 11 && hour <= 13) return "Noon";
+  if (hour >= 14 && hour <= 16) return "Afternoon";
   if (hour >= 17 && hour <= 18) return "Sunset";
-  if (hour >= 19 && hour <= 22) return "Evening";
-  return "DeepNight";
+  if (hour >= 19 && hour <= 22) return "Night";
+  return "Midnight";
 }
 
 function shiftedDate(offset) {
@@ -490,49 +518,13 @@ async function serveFile(url, env) {
   const key = decodeURIComponent(url.pathname.replace(/^\/files\//, ""));
   const object = await env.WALLPAPER_BUCKET.get(key);
   if (!object) return json({ error: "File not found" }, 404);
-  if (isExpired(object.uploaded, env)) {
-    await env.WALLPAPER_BUCKET.delete(key);
-    return json({ error: "File expired" }, 404);
-  }
   return new Response(object.body, {
     headers: {
       "content-type": object.httpMetadata?.contentType || "application/octet-stream",
       "cache-control": "public, max-age=86400",
-      "expires": expiresAt(object.uploaded, env),
       "access-control-allow-origin": "*"
     }
   });
-}
-
-async function cleanupExpired(env) {
-  await cleanupPrefix(env, "wallpapers/");
-  await cleanupPrefix(env, "manifests/");
-}
-
-async function cleanupPrefix(env, prefix) {
-  let cursor;
-  do {
-    const listed = await env.WALLPAPER_BUCKET.list({ prefix, cursor, limit: 100 });
-    const expired = (listed.objects || [])
-      .filter((object) => isExpired(object.uploaded, env))
-      .map((object) => object.key);
-    if (expired.length) await env.WALLPAPER_BUCKET.delete(expired);
-    cursor = listed.truncated ? listed.cursor : undefined;
-  } while (cursor);
-}
-
-function retentionMs(env) {
-  const hours = Number(env.WALLPAPER_RETENTION_HOURS || 24);
-  return Math.max(1, hours) * 60 * 60 * 1000;
-}
-
-function isExpired(uploaded, env) {
-  if (!uploaded) return false;
-  return Date.now() - new Date(uploaded).getTime() > retentionMs(env);
-}
-
-function expiresAt(uploaded, env) {
-  return new Date(new Date(uploaded).getTime() + retentionMs(env)).toUTCString();
 }
 
 function isLockExpired(uploaded) {
@@ -546,12 +538,14 @@ function maxDailyGenerationsPerCity(env) {
 }
 
 async function countDailyWallpapers(env, citySlug, date) {
-  const prefix = `wallpapers/${citySlug}/${citySlug}_${date.replaceAll("-", "")}_`;
   let count = 0;
   let cursor;
   do {
-    const listed = await env.WALLPAPER_BUCKET.list({ prefix, cursor, limit: 100 });
-    count += (listed.objects || []).filter((object) => !isExpired(object.uploaded, env)).length;
+    const listed = await env.WALLPAPER_BUCKET.list({ prefix: "wallpapers/", cursor, limit: 1000 });
+    count += (listed.objects || []).filter((object) => {
+      const metadata = object.customMetadata || {};
+      return slug(metadata.city || "") === citySlug && metadata.date === date;
+    }).length;
     cursor = listed.truncated ? listed.cursor : undefined;
   } while (cursor);
   return count;
@@ -562,58 +556,67 @@ function readScene(url) {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
-  return {
+  const scene = {
     city: url.searchParams.get("city") || "Kaohsiung",
     cityLocal: url.searchParams.get("cityLocal") || url.searchParams.get("city") || "Kaohsiung",
     country: url.searchParams.get("country") || "Taiwan",
     date: url.searchParams.get("date") || new Date().toISOString().slice(0, 10),
-    weather: url.searchParams.get("weather") || "Cloudy",
-    period: url.searchParams.get("period") || "Noon",
+    weather: normalizeWeather(url.searchParams.get("weather") || "Cloudy"),
+    period: normalizePeriod(url.searchParams.get("period") || "Noon"),
     character: normalizeCharacter(url.searchParams.get("character") || "person"),
     tempMin: url.searchParams.get("tempMin") || "27",
     tempMax: url.searchParams.get("tempMax") || "32",
     landmarks: landmarks.length ? landmarks : ["central station", "old town market", "city park"]
   };
+  scene.festival = normalizeFestival(url.searchParams.get("festival") || festivalFor(scene.country, scene.date));
+  return scene;
 }
 
 function buildPrompt(scene) {
   const isTaiwan = scene.country === "Taiwan";
   const landmarks = selectedLandmarks(scene.landmarks);
   const character = characterPrompt(scene.character);
+  const festival = normalizeFestival(scene.festival);
+  const weatherText = weatherPrompt(scene.weather);
+  const timeText = timePrompt(scene.period);
   return [
-    "Create a premium 9:16 Android live wallpaper background in miniature Amigurumi crochet diorama style.",
-    "Match this art direction: bright open sky, airy daylight, crisp dimensional crochet stitches, miniature toy-city depth, clean composition, charming handcrafted detail, soft warm color, and a lively travel-postcard feeling.",
-    "Use a distant wide-angle establishing view from a slightly elevated viewpoint, like looking across a miniature city diorama, so multiple landmarks can appear together without tight cropping.",
-    "Avoid flat felt texture, muddy gray haze, dull low-contrast lighting, oversized text, cropped faces, empty foreground, and simple blocky buildings.",
+    "粉鉛筆畫風的手機動態桌布插畫，直式 9:16，高解析度，柔和紙張紋理，溫暖可愛的童話氛圍。",
+    "Use a refined pastel pencil illustration style, soft paper grain, warm fairy-tale mood, clean depth, and delicate hand-drawn details suitable for a phone live wallpaper.",
+    "The composition should feel like a natural miniature fairy-tale city landscape, not a collage.",
+    "Use a distant wide-angle establishing view from a slightly elevated viewpoint, so landmarks are distributed naturally across the city scene with open sky and readable depth.",
     "Use only city or county-level geography. Do not depict districts, townships, streets, neighborhoods, or overly specific local areas.",
     `City: ${scene.city}. Country: ${scene.country}.`,
-    `Weather: ${scene.weather}. Time period: ${scene.period}. Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
+    `Weather: ${scene.weather}. ${weatherText}`,
+    `Time period: ${scene.period}. ${timeText}`,
+    `Temperature: ${scene.tempMin}C~${scene.tempMax}C.`,
     `Landmarks: ${landmarks.join(", ")}.`,
+    "Background融合 8 個當地知名景點，以微縮地景與童話城市的方式自然分布，不要像拼貼。",
     "Use 7-9 landmark anchors as recognizable city signals, arranged at different depths across the city panorama while keeping the composition clean and not overcrowded.",
-    "All buildings, vehicles, shops, trees, rivers, boats, paths, and roads are handmade crochet toys with visible yarn loops and plush depth.",
     character,
-    "Characters should look active and varied, with poses that imply motion and daily life instead of standing still.",
-    "Add subtle visual motion cues suitable for a live wallpaper background: drifting crochet clouds, tiny boats on water, scooter movement, walking poses, fluttering shop awnings, falling rain or snow when weather requires it.",
+    "The foreground main character should be cute, round-faced, big-eyed, expressive, and doing daily-life actions such as holding a small fan, drinking a cool beverage, shopping, walking, chatting, taking photos, or riding a tiny scooter.",
+    "Add subtle visual motion cues suitable for a live wallpaper background: drifting clouds, tiny boats on water, walking poses, fluttering awnings, falling rain or snow when weather requires it, wind lines, sparkling highlights, and lively daily movement.",
+    festival ? `Add local festival or seasonal atmosphere for ${festival}: natural festival details, seasonal plants, food, decorations, weather-sensitive mood, and cultural cues without turning the image into a poster.` : "If there is no local festival, keep the scene as everyday city life.",
     "Keep the upper sky area light, calm, open, and visually clean so phone time, date, and status widgets do not conflict.",
     "Do not write the city name anywhere in the image.",
     "Do not place a large title, header text, or location label in the sky.",
-    "Use a legible high-contrast but gentle yarn color that remains visible on the lighter sky without clashing with the crochet artwork.",
     isTaiwan ? "Small local shop signs may use Traditional Chinese styling only when they are natural environmental details." : "Small local shop signs may use local language styling only when they are natural environmental details.",
     "Do not draw phone UI, clock, date, battery, signal icons, app labels, or temperature widgets.",
-    "No large readable headline text."
+    "Avoid text, logo, watermark, phone UI, large labels, and poster-like typography."
   ].join("\n");
 }
 
 function normalizeCharacter(value) {
-  const clean = String(value || "person").trim().toLowerCase();
-  if (["cat", "hamster", "dog", "parrot"].includes(clean)) return clean;
+  const clean = String(value || "person").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["cat", "貓"].includes(clean)) return "cat";
+  if (["dog", "狗"].includes(clean)) return "dog";
+  if (["hamster", "chinchilla", "hamster_chinchilla", "倉鼠", "仓鼠", "龍貓", "龙猫"].includes(clean)) return "hamster_chinchilla";
   return "person";
 }
 
 function normalizeWeather(value) {
   const clean = String(value || "Cloudy").trim();
-  if (["Sunny", "Cloudy", "Rainy", "Snowy", "Foggy"].includes(clean)) return clean;
-  return WEATHER_MAP[clean] || "Cloudy";
+  if (SUPPORTED_WEATHERS.includes(clean)) return WEATHER_ALIASES[clean] || clean;
+  return WEATHER_MAP[clean] || WEATHER_ALIASES[clean] || "多云";
 }
 
 function normalizePeriod(value) {
@@ -625,15 +628,13 @@ function normalizePeriod(value) {
 function characterPrompt(value) {
   switch (normalizeCharacter(value)) {
     case "cat":
-      return "Main characters are varied cute chibi Amigurumi cats: tabby cats, calico cats, black cats, white cats, orange cats, and fluffy round cats doing daily life actions such as walking, chatting, shopping, riding scooters, taking photos, carrying tiny bags, and enjoying the city.";
-    case "hamster":
-      return "Main characters are cute chibi Amigurumi hamsters doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+      return "Main characters are varied cute Q-version cats: tabby cats, calico cats, black cats, white cats, orange cats, and fluffy round cats doing daily life actions.";
+    case "hamster_chinchilla":
+      return "Main characters are cute Q-version hamsters and chinchillas with round bodies, soft ears, tiny bags, and everyday city-life actions.";
     case "dog":
-      return "Main characters are cute chibi Amigurumi dogs doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
-    case "parrot":
-      return "Main characters are cute chibi Amigurumi parrots doing daily life actions: walking, chatting, shopping, riding scooters, taking photos, and enjoying the city.";
+      return "Main characters are cute Q-version dogs of varied small breeds doing daily life actions, with friendly expressions and playful movement.";
     default:
-      return "Main characters are cute chibi Amigurumi people doing daily life actions: commuting, buying breakfast or drinks, walking with umbrellas, chatting, taking photos, riding scooters, visiting shops, relaxing in a park, or browsing a night market.";
+      return "Main character is a cute Q-version girl with a round face and big eyes, wearing fresh summer clothes, smiling in the foreground, holding a small fan and an iced drink, joined by a few friendly city residents in daily-life actions.";
   }
 }
 
@@ -673,8 +674,96 @@ async function nextSequence(env, citySlug, date) {
   return next;
 }
 
-function wallpaperFileName(citySlug, date, character, sequence, extension) {
-  return `${citySlug}_${date.replaceAll("-", "")}_${normalizeCharacter(character)}_${sequence}${extension}`;
+function wallpaperObjectKey(scene, fileName) {
+  return `wallpapers/${characterFolder(scene.character)}/${fileName}`;
+}
+
+function manifestObjectKey(scene, citySlug, id) {
+  return `manifests/${characterFolder(scene.character)}/${citySlug}/${id}.json`;
+}
+
+function wallpaperFileName(scene, extension) {
+  const parts = [
+    normalizeFestival(scene.festival),
+    filenamePart(scene.cityLocal || scene.city),
+    characterLabel(scene.character),
+    filenamePart(scene.period),
+    filenamePart(scene.weather)
+  ].filter(Boolean);
+  return `${parts.join("_")}${extension}`;
+}
+
+function characterFolder(value) {
+  return normalizeCharacter(value);
+}
+
+function characterLabel(value) {
+  switch (normalizeCharacter(value)) {
+    case "cat":
+      return "貓";
+    case "dog":
+      return "狗";
+    case "hamster_chinchilla":
+      return "倉鼠龍貓";
+    default:
+      return "人";
+  }
+}
+
+function filenamePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .replace(/\s+/g, "")
+    .slice(0, 60);
+}
+
+function normalizeFestival(value) {
+  return filenamePart(value);
+}
+
+function festivalFor(country, date) {
+  if (country !== "Taiwan") return "";
+  const md = String(date || "").slice(5, 10);
+  const festivals = {
+    "01-01": "元旦",
+    "02-14": "情人節",
+    "03-08": "婦女節",
+    "04-04": "兒童節",
+    "05-01": "勞動節",
+    "07-07": "小暑",
+    "08-08": "父親節",
+    "10-10": "國慶日",
+    "12-25": "聖誕節"
+  };
+  return festivals[md] || "";
+}
+
+function weatherPrompt(weather) {
+  if (weather.includes("晴")) return "晴朗炎熱天氣：柔和金色陽光、淡藍天空、蓬鬆白雲、微微熱氣、樹影與清亮高光。";
+  if (weather.includes("雷")) return "Thunderstorm weather: dramatic layered clouds, distant lightning glow, rain motion, wet reflections, and cozy safe city lights.";
+  if (weather.includes("雪")) return "Snowy weather: soft snowfall, powdery rooftops, cool highlights, warm windows, and quiet winter movement.";
+  if (weather.includes("雨") || weather.includes("阵雨")) return "Rainy weather: gentle rain streaks, puddle reflections, umbrellas, wet streets, and soft diffused light.";
+  if (weather.includes("雾") || weather.includes("霾") || weather.includes("尘") || weather.includes("沙")) return "Low-visibility weather: hazy air, muted depth layers, soft silhouettes, and gentle atmospheric diffusion.";
+  if (weather.includes("阴") || weather.includes("云")) return "Cloudy weather: soft cloud cover, gentle light, calm shadows, and cozy color harmony.";
+  return "Weather should be clearly reflected through sky, light, ground details, props, and character actions.";
+}
+
+function timePrompt(period) {
+  switch (normalizePeriod(period)) {
+    case "Morning":
+      return "Morning: fresh sunrise light, soft cool shadows, breakfast shops, and gentle city waking-up energy.";
+    case "Noon":
+      return "Noon: bright clear daylight, crisp highlights, short shadows, and warm active streets.";
+    case "Afternoon":
+      return "Afternoon: mellow warm light, relaxed daily pace, richer colors, and comfortable outdoor activity.";
+    case "Sunset":
+      return "Sunset: orange-pink sky, glowing windows, long shadows, and romantic warm atmosphere.";
+    case "Night":
+      return "Night: deep blue sky, warm street lights, glowing shop signs as small environmental details, and lively evening city life.";
+    default:
+      return "Midnight: quiet deep night, moonlit sky, soft lamps, peaceful streets, and dreamy calm atmosphere.";
+  }
 }
 
 function fileUrl(url, objectKey) {
