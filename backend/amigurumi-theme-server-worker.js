@@ -13,7 +13,7 @@ const WEATHER_MAP = {
   Sand: "扬沙"
 };
 const PROMPT_VERSION = "pastel-pencil-festival-weather-v7";
-const DAILY_PERIODS = ["Morning", "Noon", "Afternoon", "Sunset", "Night", "Midnight"];
+const DAILY_PERIODS = ["Morning", "Afternoon", "Sunset", "Night", "Midnight", "sunraise"];
 const SUPPORTED_WEATHERS = [
   "晴", "多云", "阴", "阵雨", "雷阵雨", "雷阵雨伴有冰雹", "雨夹雪", "小雨", "中雨", "大雨", "暴雨", "大暴雨", "特大暴雨",
   "阵雪", "小雪", "中雪", "大雪", "暴雪", "雾", "冻雨", "沙尘暴", "小雨-中雨", "中雨-大雨", "大雨-暴雨",
@@ -51,7 +51,7 @@ export default {
       service: "amigurumi-theme-server",
       routes: [
         "/?lat=22.6273&lon=120.3014&units=metric",
-        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Noon",
+        "/?city=Kaohsiung&country=Taiwan&date=2026-06-10&weather=Rainy&period=Afternoon",
         "/admin/upload"
       ]
     });
@@ -86,7 +86,7 @@ async function uploadPage(request, env) {
     country: stringValue(form.get("country"), "Taiwan"),
     date: stringValue(form.get("date"), new Date().toISOString().slice(0, 10)),
     weather: normalizeWeather(stringValue(form.get("weather"), "Cloudy")),
-    period: normalizePeriod(stringValue(form.get("period"), "Noon")),
+    period: normalizePeriod(stringValue(form.get("period"), "Afternoon")),
     character: normalizeCharacter(stringValue(form.get("character"), "person")),
     festival: normalizeFestival(stringValue(form.get("festival"), "")),
     tempMin: stringValue(form.get("tempMin"), "27"),
@@ -124,7 +124,7 @@ function uploadForm() {
   <p><label>Date<br><input name="date" type="date" style="width:100%;padding:10px"></label></p>
   <p><label>Festival, blank for none<br><input name="festival" placeholder="小暑" style="width:100%;padding:10px"></label></p>
   <p><label>Weather<br><select name="weather" style="width:100%;padding:10px">${weatherOptions}</select></label></p>
-  <p><label>Period<br><select name="period" style="width:100%;padding:10px"><option>Morning</option><option selected>Noon</option><option>Afternoon</option><option>Sunset</option><option>Night</option><option>Midnight</option></select></label></p>
+  <p><label>Period<br><select name="period" style="width:100%;padding:10px"><option>sunraise</option><option>Morning</option><option selected>Afternoon</option><option>Sunset</option><option>Night</option><option>Midnight</option></select></label></p>
   <p><label>Character<br><select name="character" style="width:100%;padding:10px"><option value="person">人</option><option value="cat">貓</option><option value="dog">狗</option><option value="hamster_chinchilla">倉鼠/龍貓</option></select></label></p>
   <p><label>Temperature min<br><input name="tempMin" value="27" inputmode="numeric" style="width:100%;padding:10px"></label></p>
   <p><label>Temperature max<br><input name="tempMax" value="32" inputmode="numeric" style="width:100%;padding:10px"></label></p>
@@ -501,11 +501,11 @@ function todayForOffset(offset) {
 
 function timePeriodForOffset(offset) {
   const hour = shiftedDate(offset).getUTCHours();
-  if (hour >= 5 && hour <= 10) return "Morning";
-  if (hour >= 11 && hour <= 13) return "Noon";
-  if (hour >= 14 && hour <= 16) return "Afternoon";
+  if (hour >= 5 && hour <= 6) return "sunraise";
+  if (hour >= 7 && hour <= 11) return "Morning";
+  if (hour >= 12 && hour <= 16) return "Afternoon";
   if (hour >= 17 && hour <= 18) return "Sunset";
-  if (hour >= 19 && hour <= 22) return "Night";
+  if (hour >= 19 && hour <= 23) return "Night";
   return "Midnight";
 }
 
@@ -562,7 +562,7 @@ function readScene(url) {
     country: url.searchParams.get("country") || "Taiwan",
     date: url.searchParams.get("date") || new Date().toISOString().slice(0, 10),
     weather: normalizeWeather(url.searchParams.get("weather") || "Cloudy"),
-    period: normalizePeriod(url.searchParams.get("period") || "Noon"),
+    period: normalizePeriod(url.searchParams.get("period") || "Afternoon"),
     character: normalizeCharacter(url.searchParams.get("character") || "person"),
     tempMin: url.searchParams.get("tempMin") || "27",
     tempMax: url.searchParams.get("tempMax") || "32",
@@ -620,9 +620,9 @@ function normalizeWeather(value) {
 }
 
 function normalizePeriod(value) {
-  const clean = String(value || "Noon").trim();
+  const clean = String(value || "Afternoon").trim();
   if (DAILY_PERIODS.includes(clean)) return clean;
-  return "Noon";
+  return "Afternoon";
 }
 
 function characterPrompt(value) {
@@ -751,10 +751,10 @@ function weatherPrompt(weather) {
 
 function timePrompt(period) {
   switch (normalizePeriod(period)) {
+    case "sunraise":
+      return "sunraise: pale dawn light, gentle first sunlight, quiet streets, fresh air, and soft pastel sky.";
     case "Morning":
       return "Morning: fresh sunrise light, soft cool shadows, breakfast shops, and gentle city waking-up energy.";
-    case "Noon":
-      return "Noon: bright clear daylight, crisp highlights, short shadows, and warm active streets.";
     case "Afternoon":
       return "Afternoon: mellow warm light, relaxed daily pace, richer colors, and comfortable outdoor activity.";
     case "Sunset":

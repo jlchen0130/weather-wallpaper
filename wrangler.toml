@@ -12,4 +12,4 @@ MAX_DAILY_GENERATIONS_PER_CITY = "6"
 PUBLIC_WORKER_ORIGIN = "https://amigurumi-weather-theme-server.wemmei0130.workers.dev"
 
 [triggers]
-crons = ["0 4,7,9,12,16,22 * * *"]
+crons = ["0 4,9,11,16,21,23 * * *"]
