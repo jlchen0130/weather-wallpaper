@@ -273,6 +273,20 @@ async function ensureWallpaper(env, url, scene, options = {}) {
         limited_reason: "requested character wallpaper not found; reused latest city wallpaper"
       };
     }
+    const globalLatest = await latestWallpaper(env, url);
+    if (globalLatest) {
+      return {
+        ...globalLatest,
+        scene_key: sceneKey,
+        requested_city: scene.city,
+        requested_weather: scene.weather,
+        requested_period: scene.period,
+        requested_character: scene.character,
+        reused: true,
+        pending_refresh: false,
+        limited_reason: "requested city wallpaper not found; reused latest available wallpaper"
+      };
+    }
     return {
       error: "no wallpaper available for this city yet",
       scene_key: sceneKey,
@@ -418,6 +432,32 @@ async function latestCityWallpaper(env, url, citySlug, character) {
     file_name: fileName,
     object_key: object.key,
     city: metadata.city || citySlug,
+    country: metadata.country || "",
+    weather: metadata.weather || "",
+    period: metadata.period || "",
+    character: metadata.character || "person",
+    festival: metadata.festival || "",
+    date: metadata.date || "",
+    image_url: fileUrl(url, object.key),
+    expires_at: null
+  };
+}
+
+async function latestWallpaper(env, url) {
+  const listed = await env.WALLPAPER_BUCKET.list({
+    prefix: "wallpapers/",
+    limit: 1000
+  });
+  const objects = (listed.objects || [])
+    .sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime());
+  if (!objects.length) return null;
+  const object = objects[0];
+  const metadata = object.customMetadata || {};
+  const fileName = object.key.split("/").pop() || object.key;
+  return {
+    file_name: fileName,
+    object_key: object.key,
+    city: metadata.city || "",
     country: metadata.country || "",
     weather: metadata.weather || "",
     period: metadata.period || "",

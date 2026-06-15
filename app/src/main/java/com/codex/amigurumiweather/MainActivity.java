@@ -563,17 +563,23 @@ public class MainActivity extends Activity {
             try {
                 WeatherScene scene = SceneResolver.resolve(this);
                 Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
+                boolean usedFallback = false;
                 if (bitmap == null && ServerWallpaperClient.isConfigured(this)) {
                     Bitmap cached = WallpaperStore.load(this);
                     if (cached != null) {
                         bitmap = cached;
-                        status("Status: server unavailable. Applying cached wallpaper. " + ServerWallpaperClient.lastError());
+                        usedFallback = true;
+                        status("Status: server image not available. Applying cached wallpaper. " + ServerWallpaperClient.lastError());
                     } else {
                         bitmap = LocalWallpaperRenderer.render(scene);
-                        status("Status: server unavailable. Applying local fallback wallpaper. " + ServerWallpaperClient.lastError());
+                        usedFallback = true;
+                        status("Status: server image not available. Applying local fallback wallpaper. " + ServerWallpaperClient.lastError());
                     }
                 }
-                if (bitmap == null) bitmap = LocalWallpaperRenderer.render(scene);
+                if (bitmap == null) {
+                    bitmap = LocalWallpaperRenderer.render(scene);
+                    usedFallback = true;
+                }
                 WallpaperStore.save(this, bitmap);
                 Bitmap previewBitmap = bitmap;
                 runOnUiThread(() -> {
@@ -584,9 +590,10 @@ public class MainActivity extends Activity {
                 WallpaperManager.getInstance(this).setBitmap(bitmap);
                 prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, SceneKeys.forContext(this, scene)).apply();
                 Bitmap finalBitmap = bitmap;
+                String source = usedFallback ? "fallback" : "server";
                 runOnUiThread(() -> {
                     preview.setImageBitmap(Bitmap.createScaledBitmap(finalBitmap, 360, 640, true));
-                    statusText.setText("Status: wallpaper set for " + scene.cityEnglish + ", " + scene.weather + ", " + scene.tempMin + "C~" + scene.tempMax + "C.");
+                    statusText.setText("Status: " + source + " wallpaper set for " + scene.cityEnglish + ", " + scene.weather + ", " + scene.tempMin + "C~" + scene.tempMax + "C.");
                 });
             } catch (Exception error) {
                 if (ServerWallpaperClient.isConfigured(this)) {
