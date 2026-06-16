@@ -1,5 +1,13 @@
 # Changelog
 
+## Server 3.9 compatibility rebuild
+
+- Replaced the Cloudflare Worker with a defensive three-stage compatibility architecture.
+- Added legacy and new query parsing for `loc/city`, `char/character`, `weather`, `period`, and `style`.
+- Added city-level Taiwan location normalization, four-code weather convergence, festival detection, and strict R2 keys in `wallpaper/<style>/<festival>_<char>_<loc>_<period>_<weather>.mp4`.
+- Added R2-first cache handling to avoid OpenAI cost on cache hits.
+- Added OpenAI failure fallback returning HTTP 304 so clients keep the current wallpaper, plus Telegram alerting via Worker environment secrets.
+
 ## 4.1
 
 - Added a phone-side wallpaper style selector with Knitted and Colored Pencil options.

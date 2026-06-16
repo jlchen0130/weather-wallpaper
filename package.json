@@ -1,6 +1,6 @@
-{
+﻿{
   "name": "amigurumi-weather-theme",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "private": true,
   "scripts": {
     "cf:whoami": "wrangler whoami",
@@ -12,3 +12,4 @@
     "wrangler": "^4.20.0"
   }
 }
+
