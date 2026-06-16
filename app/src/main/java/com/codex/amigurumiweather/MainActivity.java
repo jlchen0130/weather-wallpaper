@@ -77,6 +77,7 @@ public class MainActivity extends Activity {
     private CheckBox useCustomLanguage;
     private EditText customLanguage;
     private Spinner characterSpinner;
+    private Spinner styleSpinner;
     private EditText adminToken;
     private EditText adminCity;
     private EditText adminCountry;
@@ -86,6 +87,7 @@ public class MainActivity extends Activity {
     private Spinner adminWeather;
     private Spinner adminPeriod;
     private Spinner adminCharacter;
+    private Spinner adminStyle;
     private TextView adminPrompt;
     private TextView adminImageStatus;
     private Uri adminImageUri;
@@ -165,6 +167,24 @@ public class MainActivity extends Activity {
         characterSpinner.setAdapter(characterAdapter);
         characterSpinner.setSelection(CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person")));
         root.addView(characterSpinner);
+
+        TextView styleLabel = new TextView(this);
+        styleLabel.setText("\u756b\u98a8");
+        styleLabel.setTextSize(14f);
+        styleLabel.setTextColor(Color.rgb(65, 45, 34));
+        styleLabel.setPadding(0, dp(8), 0, 0);
+        root.addView(styleLabel);
+
+        styleSpinner = new Spinner(this);
+        ArrayAdapter<String> styleAdapter = new ArrayAdapter<>(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            StyleOptions.LABELS
+        );
+        styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        styleSpinner.setAdapter(styleAdapter);
+        styleSpinner.setSelection(StyleOptions.indexOf(prefs.getString(AppConfig.KEY_STYLE, "knitted")));
+        root.addView(styleSpinner);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -271,6 +291,10 @@ public class MainActivity extends Activity {
         adminCharacter = spinner(CharacterOptions.LABELS, CharacterOptions.LABELS[CharacterOptions.indexOf(prefs.getString("admin_character", "person"))]);
         root.addView(label("\u4e3b\u89d2"));
         root.addView(adminCharacter);
+
+        adminStyle = spinner(StyleOptions.LABELS, StyleOptions.LABELS[StyleOptions.indexOf(prefs.getString("admin_style", "knitted"))]);
+        root.addView(label("\u756b\u98a8"));
+        root.addView(adminStyle);
 
         adminTempMin = input("\u6700\u4f4e\u6eab", "admin_temp_min", false);
         if (adminTempMin.getText().toString().trim().isEmpty()) adminTempMin.setText("27");
@@ -380,6 +404,7 @@ public class MainActivity extends Activity {
             .putBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, useCustomLanguage.isChecked())
             .putString(AppConfig.KEY_CUSTOM_LANGUAGE, customLanguage.getText().toString().trim())
             .putString(AppConfig.KEY_CHARACTER, CharacterOptions.valueAt(characterSpinner.getSelectedItemPosition()))
+            .putString(AppConfig.KEY_STYLE, StyleOptions.valueAt(styleSpinner.getSelectedItemPosition()))
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(AppConfig.DEFAULT_UPDATE_MINUTES))
             .putString(AppConfig.KEY_WEATHER_BACKEND_URL, "")
             .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
@@ -395,6 +420,7 @@ public class MainActivity extends Activity {
             .putString("admin_weather", adminWeather.getSelectedItem().toString())
             .putString("admin_period", adminPeriod.getSelectedItem().toString())
             .putString("admin_character", CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition()))
+            .putString("admin_style", StyleOptions.valueAt(adminStyle.getSelectedItemPosition()))
             .putString("admin_temp_min", adminTempMin.getText().toString().trim())
             .putString("admin_temp_max", adminTempMax.getText().toString().trim())
             .putString("admin_landmarks", adminLandmarks.getText().toString().trim())
@@ -407,12 +433,14 @@ public class MainActivity extends Activity {
         String weather = adminWeather == null ? prefs.getString("admin_weather", "Cloudy") : adminWeather.getSelectedItem().toString();
         String period = adminPeriod == null ? prefs.getString("admin_period", "Afternoon") : adminPeriod.getSelectedItem().toString();
         String character = adminCharacter == null ? prefs.getString("admin_character", "person") : CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition());
+        String style = adminStyle == null ? prefs.getString("admin_style", "knitted") : StyleOptions.valueAt(adminStyle.getSelectedItemPosition());
         String min = adminTempMin == null ? prefs.getString("admin_temp_min", "27") : adminTempMin.getText().toString().trim();
         String max = adminTempMax == null ? prefs.getString("admin_temp_max", "32") : adminTempMax.getText().toString().trim();
         String landmarks = adminLandmarks == null ? prefs.getString("admin_landmarks", "85 Sky Tower|Love River|Pier-2 Art Center") : adminLandmarks.getText().toString().trim();
         String characterText = CharacterOptions.promptText(character);
-        return "粉鉛筆畫風的手機動態桌布插畫，直式 9:16，高解析度，柔和紙張紋理，溫暖可愛的童話氛圍。\n"
-            + "Use a refined pastel pencil illustration style, soft paper grain, warm fairy-tale mood, clean depth, and delicate hand-drawn details suitable for a phone live wallpaper.\n"
+        String styleText = StyleOptions.promptText(style);
+        return "手機動態桌布插畫，直式 9:16，高解析度，溫暖可愛的童話氛圍。\n"
+            + styleText + "\n"
             + "City: " + cleanOr(city, "Kaohsiung") + ". Country: " + cleanOr(country, "Taiwan") + ".\n"
             + "Weather: " + weather + ". Time period: " + period + ". Temperature: " + cleanOr(min, "27") + "C~" + cleanOr(max, "32") + "C.\n"
             + "Landmarks: " + cleanOr(landmarks, "85 Sky Tower|Love River|Pier-2 Art Center").replace("|", ", ") + ".\n"
@@ -500,6 +528,7 @@ public class MainActivity extends Activity {
             writeField(out, boundary, "weather", adminWeather.getSelectedItem().toString());
             writeField(out, boundary, "period", adminPeriod.getSelectedItem().toString());
             writeField(out, boundary, "character", CharacterOptions.valueAt(adminCharacter.getSelectedItemPosition()));
+            writeField(out, boundary, "style", StyleOptions.valueAt(adminStyle.getSelectedItemPosition()));
             writeField(out, boundary, "tempMin", cleanOr(adminTempMin.getText().toString(), "27"));
             writeField(out, boundary, "tempMax", cleanOr(adminTempMax.getText().toString(), "32"));
             writeField(out, boundary, "landmarks", cleanOr(adminLandmarks.getText().toString(), "85 Sky Tower|Love River|Pier-2 Art Center"));
@@ -699,6 +728,7 @@ class AppConfig {
     static final String KEY_USE_CUSTOM_LANGUAGE = "use_custom_language";
     static final String KEY_CUSTOM_LANGUAGE = "custom_language";
     static final String KEY_CHARACTER = "character";
+    static final String KEY_STYLE = "style";
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
@@ -757,6 +787,36 @@ class CharacterOptions {
             return "Main characters are cute Q-version dogs of varied small breeds doing daily life actions, with friendly expressions and playful movement.";
         }
         return "Main character is a cute Q-version girl with a round face and big eyes, wearing fresh summer clothes, smiling in the foreground, holding a small fan and an iced drink, joined by a few friendly city residents in daily-life actions.";
+    }
+}
+
+class StyleOptions {
+    static final String[] LABELS = {
+        "\u91dd\u7e54",
+        "\u8272\u925b\u7b46"
+    };
+    private static final String[] VALUES = {
+        "knitted",
+        "colored_pencil"
+    };
+
+    static int indexOf(String value) {
+        for (int i = 0; i < VALUES.length; i++) {
+            if (VALUES[i].equals(value)) return i;
+        }
+        return 0;
+    }
+
+    static String valueAt(int index) {
+        if (index < 0 || index >= VALUES.length) return VALUES[0];
+        return VALUES[index];
+    }
+
+    static String promptText(String value) {
+        if ("colored_pencil".equals(value)) {
+            return "Use a refined colored pencil illustration style, soft paper grain, warm fairy-tale mood, clean depth, delicate hand-drawn strokes, gentle shading, and rich but soft color suitable for a phone live wallpaper.";
+        }
+        return "Use a premium handmade knitted and crochet amigurumi style: yarn texture, soft fiber depth, plush miniature buildings, crochet clouds, stitched details, and cozy handcrafted lighting suitable for a phone live wallpaper.";
     }
 }
 
@@ -942,6 +1002,7 @@ class ServerWallpaperClient {
                 + "&weather=" + enc(scene.weather)
                 + "&period=" + enc(scene.timePeriod)
                 + "&character=" + enc(prefs.getString(AppConfig.KEY_CHARACTER, "person"))
+                + "&style=" + enc(prefs.getString(AppConfig.KEY_STYLE, "knitted"))
                 + "&tempMin=" + scene.tempMin
                 + "&tempMax=" + scene.tempMax
                 + "&landmarks=" + enc(join(scene.landmarks));
@@ -1134,7 +1195,8 @@ class SceneKeys {
     static String forContext(Context context, WeatherScene scene) {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         String character = prefs.getString(AppConfig.KEY_CHARACTER, "person");
-        return scene.sceneKey() + "|" + character;
+        String style = prefs.getString(AppConfig.KEY_STYLE, "knitted");
+        return scene.sceneKey() + "|" + character + "|" + style;
     }
 }
 

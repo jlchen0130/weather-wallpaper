@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1
+
+- Added a phone-side wallpaper style selector with Knitted and Colored Pencil options.
+- Sent the selected style to the Cloudflare Worker and included it in scene keys so style changes sync separate wallpapers.
+- Added style metadata, R2 object grouping, manifest paths, file names, admin upload fields, and prompt switching on the Worker.
+- Deployed the Worker with the style-aware generation and lookup rules.
+
 ## 3.2
 
 - Server AI prompts now use only 2-3 local landmark anchors per generated wallpaper.
