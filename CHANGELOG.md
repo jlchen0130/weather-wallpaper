@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.2
+
+- Hardened server failure handling for phone clients.
+- Android now treats server HTTP 304 as "keep the current wallpaper" instead of a generic connection failure.
+- Live Wallpaper no longer marks a scene as synced unless a new server image was actually downloaded.
+- Added Worker generation locks, daily generation limits, guarded Telegram alerts, and safer R2 file serving.
+
 ## Server 3.9 compatibility rebuild
 
 - Replaced the Cloudflare Worker with a defensive three-stage compatibility architecture.
