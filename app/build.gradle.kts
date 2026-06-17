@@ -20,7 +20,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 420
-        versionName = "4.2"
+        versionName = "4.20"
     }
 
     flavorDimensions += "device"

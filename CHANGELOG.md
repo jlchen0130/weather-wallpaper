@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.20
+
+- Fixed app update version parsing. Older 4.1 builds parsed `v4.2` as `402`, so this release uses `v4.20` while keeping Android `versionCode=420`.
+- Future version parsing now maps `v4.3` to `430`, `v4.20` to `420`, and supports patch components.
+
 ## 4.2
 
 - Hardened server failure handling for phone clients.

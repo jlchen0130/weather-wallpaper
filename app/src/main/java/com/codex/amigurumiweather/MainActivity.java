@@ -895,7 +895,13 @@ class AppUpdater {
             if (parts.length >= 2) {
                 int major = Integer.parseInt(parts[0].replaceAll("[^0-9]", ""));
                 int minor = Integer.parseInt(parts[1].replaceAll("[^0-9]", ""));
-                return major == 1 ? minor + 1 : major * 100 + minor;
+                int patch = 0;
+                if (parts.length >= 3) {
+                    patch = Integer.parseInt(parts[2].replaceAll("[^0-9]", ""));
+                }
+                if (major == 1) return minor + 1;
+                if (minor >= 10) return major * 100 + minor + patch;
+                return major * 100 + minor * 10 + patch;
             }
             return Integer.parseInt(clean.replaceAll("[^0-9]", ""));
         } catch (Exception ignored) {
