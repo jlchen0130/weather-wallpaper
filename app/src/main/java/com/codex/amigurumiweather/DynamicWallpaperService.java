@@ -114,7 +114,10 @@ public class DynamicWallpaperService extends WallpaperService {
                         if (generated != null) {
                             background = generated;
                             WallpaperStore.save(DynamicWallpaperService.this, generated);
-                            prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, newKey).apply();
+                            if (!ServerWallpaperClient.isConfigured(DynamicWallpaperService.this)
+                                || !ServerWallpaperClient.lastNotModified()) {
+                                prefs.edit().putString(AppConfig.KEY_LAST_SCENE_KEY, newKey).apply();
+                            }
                         } else if (background == null) {
                             background = LocalWallpaperRenderer.render(next);
                         }
@@ -135,8 +138,7 @@ public class DynamicWallpaperService extends WallpaperService {
             Bitmap server = ServerWallpaperClient.fetchOrCreate(DynamicWallpaperService.this, next);
             if (server != null) return server;
             if (ServerWallpaperClient.isConfigured(DynamicWallpaperService.this)) {
-                Bitmap cached = WallpaperStore.load(DynamicWallpaperService.this);
-                return cached != null ? cached : LocalWallpaperRenderer.render(next);
+                return null;
             }
             return LocalWallpaperRenderer.render(next);
         }

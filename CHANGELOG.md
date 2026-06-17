@@ -7,6 +7,9 @@
 - Added city-level Taiwan location normalization, four-code weather convergence, festival detection, and strict R2 keys in `wallpaper/<style>/<festival>_<char>_<loc>_<period>_<weather>.mp4`.
 - Added R2-first cache handling to avoid OpenAI cost on cache hits.
 - Added OpenAI failure fallback returning HTTP 304 so clients keep the current wallpaper, plus Telegram alerting via Worker environment secrets.
+- Added R2 generation locks, daily city/style generation limits, guarded Telegram waitUntil handling, OpenAI/Telegram timeouts, and `/files` prefix restrictions.
+- Updated Android client handling so HTTP 304 means "keep current wallpaper" and does not mark a scene as synced when no new server image was downloaded.
+- Rewrote the Cloudflare deployment runbook with current secrets, SRE behavior, cron status, smoke tests, rollback notes, and admin upload status.
 
 ## 4.1
 

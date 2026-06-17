@@ -5,6 +5,8 @@ const DEFAULT_CHARACTER = "person";
 const DEFAULT_PERIOD = "afternoon";
 const DEFAULT_WEATHER = "cloudy";
 const DEFAULT_CITY = "Kaohsiung";
+const DEFAULT_DAILY_GENERATION_LIMIT = 8;
+const LOCK_TTL_MS = 15 * 60 * 1000;
 
 const TAIWAN_CITY_ALIASES = {
   taipei: "Taipei",
@@ -162,13 +164,24 @@ export default {
         object_key_format: "wallpaper/<style>/<festival>_<char>_<loc>_<period>_<weather>.mp4"
       });
     } catch (error) {
-      ctx.waitUntil(sendTelegramAlert(env, {
+      waitUntilSafe(ctx, sendTelegramAlert(env, {
         title: "Worker unhandled exception",
         error,
         scene: safeSceneFromUrl(url)
       }));
       return notModified("worker_exception");
     }
+  },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(Promise.resolve().then(() => {
+      console.log(JSON.stringify({
+        level: "info",
+        event: "scheduled_heartbeat",
+        cron: event.cron,
+        scheduledTime: event.scheduledTime
+      }));
+    }));
   }
 };
 
@@ -183,7 +196,31 @@ async function wallpaperResponse(request, env, ctx) {
     return wallpaperJson(url, scene, objectKey, true);
   }
 
+  const lockKey = `locks/${objectKey}.json`;
+  const lock = await env.WALLPAPER_BUCKET.get(lockKey);
+  if (lock && !isLockExpired(lock.uploaded)) {
+    return notModified("generation_already_pending_keep_current_wallpaper");
+  }
+
+  const dailyCount = await countDailyGenerations(env, scene);
+  const dailyLimit = dailyGenerationLimit(env);
+  if (dailyCount >= dailyLimit) {
+    waitUntilSafe(ctx, sendTelegramAlert(env, {
+      title: "Daily OpenAI generation limit reached",
+      error: new Error(`daily generation limit reached: ${dailyLimit}`),
+      scene
+    }));
+    return notModified("daily_generation_limit_keep_current_wallpaper");
+  }
+
   try {
+    await env.WALLPAPER_BUCKET.put(lockKey, JSON.stringify({
+      objectKey,
+      scene,
+      createdAt: new Date().toISOString()
+    }), {
+      httpMetadata: { contentType: "application/json; charset=utf-8" }
+    });
     const bytes = await generateWallpaper(env, scene);
     await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
       httpMetadata: { contentType: "image/png" },
@@ -195,17 +232,20 @@ async function wallpaperResponse(request, env, ctx) {
         period: scene.period,
         weather: scene.weather,
         source: "openai-image-api",
+        generatedDate: new Date().toISOString().slice(0, 10),
         generatedAt: new Date().toISOString()
       }
     });
     return wallpaperJson(url, scene, objectKey, false);
   } catch (error) {
-    ctx.waitUntil(sendTelegramAlert(env, {
+    waitUntilSafe(ctx, sendTelegramAlert(env, {
       title: "OpenAI wallpaper generation failed",
       error,
       scene
     }));
     return notModified("generation_failed_keep_current_wallpaper");
+  } finally {
+    await env.WALLPAPER_BUCKET.delete(lockKey);
   }
 }
 
@@ -231,11 +271,37 @@ function buildWallpaperKey(scene) {
   return `wallpaper/${filenamePart(scene.style)}/${fileName}.mp4`;
 }
 
+async function countDailyGenerations(env, scene) {
+  const prefix = `wallpaper/${filenamePart(scene.style)}/`;
+  const listed = await env.WALLPAPER_BUCKET.list({ prefix, limit: 1000 });
+  const today = new Date().toISOString().slice(0, 10);
+  return (listed.objects || []).filter((object) => {
+    const metadata = object.customMetadata || {};
+    return metadata.source === "openai-image-api"
+      && metadata.generatedDate === today
+      && metadata.city === scene.city;
+  }).length;
+}
+
+function dailyGenerationLimit(env) {
+  const value = Number(env.MAX_DAILY_GENERATIONS_PER_CITY || DEFAULT_DAILY_GENERATION_LIMIT);
+  if (!Number.isFinite(value)) return DEFAULT_DAILY_GENERATION_LIMIT;
+  return Math.max(1, Math.min(50, Math.floor(value)));
+}
+
+function isLockExpired(uploaded) {
+  if (!uploaded) return false;
+  return Date.now() - new Date(uploaded).getTime() > LOCK_TTL_MS;
+}
+
 async function generateWallpaper(env, scene) {
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
   const prompt = buildPrompt(scene);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 55000);
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
+    signal: controller.signal,
     headers: {
       authorization: `Bearer ${env.OPENAI_API_KEY}`,
       "content-type": "application/json"
@@ -246,7 +312,7 @@ async function generateWallpaper(env, scene) {
       size: IMAGE_SIZE,
       n: 1
     })
-  });
+  }).finally(() => clearTimeout(timeout));
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = body?.error?.message || `OpenAI HTTP ${response.status}`;
@@ -288,6 +354,8 @@ function wallpaperJson(url, scene, objectKey, reused) {
     file_name: objectKey.split("/").pop(),
     object_key: objectKey,
     image_url: fileUrl(url, objectKey),
+    content_type: "image/png",
+    asset_kind: "generated_image",
     reused,
     cache: reused ? "hit" : "miss_generated",
     city: scene.city,
@@ -298,7 +366,8 @@ function wallpaperJson(url, scene, objectKey, reused) {
     festival: scene.festival,
     animation: {
       type: "server-wallpaper-file",
-      format: "mp4-key-compatible-image-payload"
+      format: "mp4-key-compatible-image-payload",
+      payload_content_type: "image/png"
     }
   });
 }
@@ -306,6 +375,7 @@ function wallpaperJson(url, scene, objectKey, reused) {
 async function serveR2File(url, env) {
   assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
   const key = decodeURIComponent(url.pathname.replace(/^\/files\//, ""));
+  if (!key.startsWith("wallpaper/")) return json({ error: "File not found" }, 404);
   const object = await env.WALLPAPER_BUCKET.get(key);
   if (!object) return json({ error: "File not found" }, 404);
   return new Response(object.body, {
@@ -360,8 +430,11 @@ async function sendTelegramAlert(env, alert) {
     `*Period:* ${escapeTelegram(scene.period || "unknown")}`,
     `*Weather:* ${escapeTelegram(scene.weather || "unknown")}`
   ].join("\n");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
   const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
     method: "POST",
+    signal: controller.signal,
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       chat_id: env.TELEGRAM_CHAT_ID,
@@ -369,10 +442,20 @@ async function sendTelegramAlert(env, alert) {
       parse_mode: "MarkdownV2",
       disable_web_page_preview: true
     })
-  });
+  }).finally(() => clearTimeout(timeout));
   if (!response.ok) {
     console.log(JSON.stringify({ level: "warn", event: "telegram_alert_failed", status: response.status }));
   }
+}
+
+function waitUntilSafe(ctx, promise) {
+  ctx.waitUntil(Promise.resolve(promise).catch((error) => {
+    console.log(JSON.stringify({
+      level: "warn",
+      event: "wait_until_failed",
+      message: error?.message || String(error)
+    }));
+  }));
 }
 
 function normalizeCity(value) {

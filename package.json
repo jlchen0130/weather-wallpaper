@@ -1,10 +1,13 @@
 ﻿{
   "name": "amigurumi-weather-theme",
   "version": "1.9.0",
+  "type": "module",
   "private": true,
   "scripts": {
     "cf:whoami": "wrangler whoami",
     "cf:create-bucket": "wrangler r2 bucket create amigurumi-weather-wallpapers",
+    "cf:check": "node --check backend/amigurumi-theme-server-worker.js",
+    "cf:dry-run": "wrangler deploy --dry-run",
     "cf:deploy": "wrangler deploy",
     "cf:tail": "wrangler tail"
   },

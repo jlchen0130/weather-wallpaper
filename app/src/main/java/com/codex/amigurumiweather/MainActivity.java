@@ -974,6 +974,7 @@ class WallpaperStore {
 
 class ServerWallpaperClient {
     private static String lastError = "";
+    private static boolean lastNotModified = false;
 
     static boolean isConfigured(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
@@ -986,9 +987,14 @@ class ServerWallpaperClient {
         return lastError == null || lastError.isEmpty() ? "Server unavailable." : lastError;
     }
 
+    static boolean lastNotModified() {
+        return lastNotModified;
+    }
+
     static Bitmap fetchOrCreate(Context context, WeatherScene scene) {
         try {
             lastError = "";
+            lastNotModified = false;
             SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
             String base = prefs.getString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL);
             if (base == null || base.trim().isEmpty()) base = AppConfig.DEFAULT_THEME_SERVER_URL;
@@ -1028,7 +1034,12 @@ class ServerWallpaperClient {
                 .putString(AppConfig.KEY_LAST_SERVER_FILE, fileName)
                 .apply();
             return bitmap;
+        } catch (NotModifiedException notModified) {
+            lastNotModified = true;
+            lastError = "Server has no newer wallpaper. Keeping current wallpaper.";
+            return null;
         } catch (Exception error) {
+            lastNotModified = false;
             lastError = error.getMessage();
             return null;
         }
@@ -1588,8 +1599,12 @@ class Http {
     }
 
     static String read(HttpURLConnection connection) throws Exception {
+        int code = connection.getResponseCode();
+        if (code == 304) {
+            throw new NotModifiedException();
+        }
         BufferedReader reader = new BufferedReader(new InputStreamReader(
-            connection.getResponseCode() >= 200 && connection.getResponseCode() <= 299
+            code >= 200 && code <= 299
                 ? connection.getInputStream()
                 : connection.getErrorStream()
         ));
@@ -1597,11 +1612,14 @@ class Http {
         String line;
         while ((line = reader.readLine()) != null) builder.append(line);
         String body = builder.toString();
-        if (connection.getResponseCode() < 200 || connection.getResponseCode() > 299) {
-            throw new IllegalStateException("HTTP " + connection.getResponseCode() + ": " + body);
+        if (code < 200 || code > 299) {
+            throw new IllegalStateException("HTTP " + code + ": " + body);
         }
         return body;
     }
+}
+
+class NotModifiedException extends Exception {
 }
 
 class LocalWallpaperRenderer {
