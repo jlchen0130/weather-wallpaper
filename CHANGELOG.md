@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.34
+
+- Added an hourly background wallpaper sync receiver using AlarmManager.
+- Background sync now refreshes static wallpapers even when the app UI is not open.
+- Dynamic wallpaper mode now updates the shared wallpaper cache hourly instead of waiting only for the next time-period boundary.
+- Wallpaper sync scheduling is restored after phone reboot.
+
 ## 4.33
 
 - Fixed phone status handling for HTTP 304 server responses.

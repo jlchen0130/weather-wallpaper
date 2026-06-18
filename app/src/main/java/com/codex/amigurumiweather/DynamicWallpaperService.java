@@ -14,6 +14,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class DynamicWallpaperService extends WallpaperService {
+    private static final long HOURLY_SYNC_MS = 60L * 60L * 1000L;
+
     @Override
     public Engine onCreateEngine() {
         return new AmigurumiEngine();
@@ -97,7 +99,7 @@ public class DynamicWallpaperService extends WallpaperService {
         private void refreshSceneIfNeeded(boolean force) {
             long now = System.currentTimeMillis();
             SharedPreferences prefs = getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
-            long interval = background == null ? 30L * 1000L : Rules.nextPeriodCheckDelayMillis();
+            long interval = background == null ? 30L * 1000L : Math.min(HOURLY_SYNC_MS, Rules.nextPeriodCheckDelayMillis());
             if (!force && now - lastRefresh < interval) return;
             lastRefresh = now;
 

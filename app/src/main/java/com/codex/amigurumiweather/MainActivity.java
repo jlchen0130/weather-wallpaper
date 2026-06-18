@@ -114,6 +114,7 @@ public class MainActivity extends Activity {
         } else {
             setContentView(buildUi());
             requestLocationPermissionIfNeeded();
+            WallpaperSyncReceiver.schedule(this);
             loadCachedPreview();
             syncLatestWallpaper(true);
             syncHandler.postDelayed(hourlySync, AUTO_SYNC_INTERVAL_MS);
@@ -227,6 +228,7 @@ public class MainActivity extends Activity {
             boolean openPicker = dynamicWallpaperToggle.isChecked()
                 && !prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false);
             saveSettings();
+            WallpaperSyncReceiver.schedule(this);
             setContentView(buildUi());
             loadCachedPreview();
             syncLatestWallpaper(true);
