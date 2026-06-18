@@ -1684,8 +1684,8 @@ class PromptBuilder {
 class Http {
     static String get(URL url, Map<String, String> headers) throws Exception {
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setConnectTimeout(20000);
-        connection.setReadTimeout(30000);
+        connection.setConnectTimeout(30000);
+        connection.setReadTimeout(120000);
         if (headers != null) for (Map.Entry<String, String> entry : headers.entrySet()) {
             connection.setRequestProperty(entry.getKey(), entry.getValue());
         }

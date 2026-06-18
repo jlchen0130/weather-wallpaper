@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.32
+
+- Increased server wallpaper JSON request timeout from 30 seconds to 120 seconds so first-time OpenAI-generated wallpapers can complete instead of falling back to the previous cached wallpaper.
+- Confirmed the missing Kaohsiung afternoon/person/knitted/cloudy wallpaper has now been generated and cached on R2.
+
 ## 4.31
 
 - Updated the launcher app icon to a cute Q-version weather symbol with a cloud, sun, face, and raindrops.
