@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.31
+
+- Updated the launcher app icon to a cute Q-version weather symbol with a cloud, sun, face, and raindrops.
+
 ## 4.30
 
 - Simplified the phone home screen to show only the latest wallpaper preview and sync status.
