@@ -27,6 +27,8 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -68,6 +70,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private static final long AUTO_SYNC_INTERVAL_MS = 60L * 60L * 1000L;
     private static final int REQUEST_ADMIN_IMAGE = 2401;
     private SharedPreferences prefs;
     private TextView statusText;
@@ -78,6 +82,8 @@ public class MainActivity extends Activity {
     private EditText customLanguage;
     private Spinner characterSpinner;
     private Spinner styleSpinner;
+    private CheckBox dynamicWallpaperToggle;
+    private boolean syncInProgress = false;
     private EditText adminToken;
     private EditText adminCity;
     private EditText adminCountry;
@@ -91,6 +97,13 @@ public class MainActivity extends Activity {
     private TextView adminPrompt;
     private TextView adminImageStatus;
     private Uri adminImageUri;
+    private final Runnable hourlySync = new Runnable() {
+        @Override
+        public void run() {
+            syncLatestWallpaper(false);
+            syncHandler.postDelayed(this, AUTO_SYNC_INTERVAL_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,7 +114,17 @@ public class MainActivity extends Activity {
         } else {
             setContentView(buildUi());
             requestLocationPermissionIfNeeded();
+            loadCachedPreview();
+            syncLatestWallpaper(true);
+            syncHandler.postDelayed(hourlySync, AUTO_SYNC_INTERVAL_MS);
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        syncHandler.removeCallbacks(hourlySync);
+        executor.shutdownNow();
     }
 
     private boolean isAdminApp() {
@@ -114,106 +137,102 @@ public class MainActivity extends Activity {
         root.setPadding(dp(18), dp(18), dp(18), dp(28));
         root.setBackgroundColor(Color.rgb(255, 248, 239));
 
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView title = new TextView(this);
-        title.setText("Amigurumi Weather Theme");
-        title.setTextSize(24f);
+        title.setText("Amigurumi Weather");
+        title.setTextSize(22f);
         title.setTextColor(Color.rgb(65, 45, 34));
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        root.addView(title);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1f));
 
-        TextView subtitle = new TextView(this);
-        subtitle.setText("\u81ea\u52d5\u4f9d\u5730\u9ede\u3001\u5929\u6c23\u8207\u5929\u8272\u66f4\u65b0\u52d5\u614b\u684c\u5e03\u3002API \u8207\u4f3a\u670d\u5668\u8a2d\u5b9a\u5df2\u96b1\u85cf\u3002");
-        subtitle.setTextSize(14f);
-        subtitle.setTextColor(Color.rgb(92, 74, 62));
-        subtitle.setPadding(0, dp(6), 0, dp(14));
-        root.addView(subtitle);
+        Button settings = new Button(this);
+        settings.setText("\u2699");
+        settings.setTextSize(22f);
+        settings.setOnClickListener(v -> setContentView(buildSettingsUi()));
+        header.addView(settings, new LinearLayout.LayoutParams(dp(52), dp(52)));
+        root.addView(header);
+
+        statusText = new TextView(this);
+        statusText.setText("Status: loading latest wallpaper...");
+        statusText.setTextSize(14f);
+        statusText.setTextColor(Color.rgb(65, 45, 34));
+        statusText.setPadding(0, dp(6), 0, dp(10));
+        root.addView(statusText);
+
+        preview = new ImageView(this);
+        preview.setBackgroundColor(Color.rgb(241, 224, 204));
+        preview.setAdjustViewBounds(true);
+        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        root.addView(preview, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(620)));
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        return scroll;
+    }
+
+    private View buildSettingsUi() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(18), dp(18), dp(18), dp(28));
+        root.setBackgroundColor(Color.rgb(255, 248, 239));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        Button back = new Button(this);
+        back.setText("<");
+        back.setOnClickListener(v -> {
+            setContentView(buildUi());
+            loadCachedPreview();
+        });
+        header.addView(back, new LinearLayout.LayoutParams(dp(52), dp(52)));
+
+        TextView title = new TextView(this);
+        title.setText("\u8a2d\u5b9a");
+        title.setTextSize(22f);
+        title.setTextColor(Color.rgb(65, 45, 34));
+        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        root.addView(header);
 
         useCustomLocation = new CheckBox(this);
-        useCustomLocation.setText("\u5730\u9ede\uff1a\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS \u5b9a\u4f4d");
+        useCustomLocation.setText("\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS");
         useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
         root.addView(useCustomLocation);
 
         customCity = input("\u81ea\u8a02\u5730\u9ede\uff1aKaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
-        if (customCity.getText().toString().trim().isEmpty()) {
-            customCity.setText("Kaohsiung");
-        }
+        if (customCity.getText().toString().trim().isEmpty()) customCity.setText("Kaohsiung");
         root.addView(customCity);
 
-        useCustomLanguage = new CheckBox(this);
-        useCustomLanguage.setText("\u8a9e\u8a00\u8a2d\u5b9a\uff1a\u4f7f\u7528\u81ea\u5b9a\u7fa9\u8a9e\u7a2e\uff0c\u4e0d\u81ea\u52d5\u5075\u6e2c\u7cfb\u7d71\u9810\u8a2d");
-        useCustomLanguage.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, false));
-        root.addView(useCustomLanguage);
-
-        customLanguage = input("\u81ea\u5b9a\u7fa9\u8a9e\u7a2e\uff1aTraditional Chinese / English / Japanese", AppConfig.KEY_CUSTOM_LANGUAGE, false);
-        if (customLanguage.getText().toString().trim().isEmpty()) {
-            customLanguage.setText("Traditional Chinese");
-        }
-        root.addView(customLanguage);
-
-        TextView characterLabel = new TextView(this);
-        characterLabel.setText("\u684c\u5e03\u4e3b\u89d2");
-        characterLabel.setTextSize(14f);
-        characterLabel.setTextColor(Color.rgb(65, 45, 34));
-        characterLabel.setPadding(0, dp(8), 0, 0);
-        root.addView(characterLabel);
-
-        characterSpinner = new Spinner(this);
-        ArrayAdapter<String> characterAdapter = new ArrayAdapter<>(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            CharacterOptions.LABELS
-        );
-        characterAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        characterSpinner.setAdapter(characterAdapter);
-        characterSpinner.setSelection(CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person")));
+        root.addView(label("\u4e3b\u89d2"));
+        characterSpinner = spinner(CharacterOptions.LABELS, CharacterOptions.LABELS[CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person"))]);
         root.addView(characterSpinner);
 
-        TextView styleLabel = new TextView(this);
-        styleLabel.setText("\u756b\u98a8");
-        styleLabel.setTextSize(14f);
-        styleLabel.setTextColor(Color.rgb(65, 45, 34));
-        styleLabel.setPadding(0, dp(8), 0, 0);
-        root.addView(styleLabel);
-
-        styleSpinner = new Spinner(this);
-        ArrayAdapter<String> styleAdapter = new ArrayAdapter<>(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            StyleOptions.LABELS
-        );
-        styleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        styleSpinner.setAdapter(styleAdapter);
-        styleSpinner.setSelection(StyleOptions.indexOf(prefs.getString(AppConfig.KEY_STYLE, "knitted")));
+        root.addView(label("\u756b\u98a8"));
+        styleSpinner = spinner(StyleOptions.LABELS, StyleOptions.LABELS[StyleOptions.indexOf(prefs.getString(AppConfig.KEY_STYLE, "knitted"))]);
         root.addView(styleSpinner);
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER);
-        row.setPadding(0, dp(10), 0, dp(10));
+        dynamicWallpaperToggle = new CheckBox(this);
+        dynamicWallpaperToggle.setText("\u555f\u7528\u52d5\u614b\u684c\u5e03");
+        dynamicWallpaperToggle.setChecked(prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false));
+        root.addView(dynamicWallpaperToggle);
 
         Button save = new Button(this);
-        save.setText("\u5132\u5b58");
-        save.setOnClickListener(v -> saveSettings());
-        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, dp(48), 1f);
-        saveParams.setMarginEnd(dp(8));
-        row.addView(save, saveParams);
-
-        Button generate = new Button(this);
-        generate.setText("\u8a2d\u5b9a\u975c\u614b\u684c\u5e03");
-        generate.setOnClickListener(v -> {
+        save.setText("\u5132\u5b58\u4e26\u540c\u6b65");
+        save.setOnClickListener(v -> {
+            boolean openPicker = dynamicWallpaperToggle.isChecked()
+                && !prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false);
             saveSettings();
-            generateAndApplyWallpaper();
+            setContentView(buildUi());
+            loadCachedPreview();
+            syncLatestWallpaper(true);
+            if (openPicker) openLiveWallpaperPicker();
         });
-        row.addView(generate, new LinearLayout.LayoutParams(0, dp(48), 1.4f));
-        root.addView(row);
-
-        Button live = new Button(this);
-        live.setText("\u958b\u555f\u52d5\u614b\u684c\u5e03");
-        live.setOnClickListener(v -> {
-            saveSettings();
-            openLiveWallpaperPicker();
-        });
-        root.addView(live, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+        root.addView(save, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
 
         Button update = new Button(this);
         update.setText("\u66f4\u65b0 App");
@@ -225,24 +244,17 @@ public class MainActivity extends Activity {
 
         TextView version = new TextView(this);
         version.setText("App \u7248\u672c\uff1a" + AppUpdater.currentVersionName(this));
-        version.setTextSize(13f);
-        version.setTextColor(Color.rgb(92, 74, 62));
         version.setGravity(Gravity.CENTER);
-        version.setPadding(0, dp(6), 0, dp(8));
+        version.setTextColor(Color.rgb(92, 74, 62));
+        version.setPadding(0, dp(8), 0, dp(8));
         root.addView(version);
 
         statusText = new TextView(this);
         statusText.setText("Status: ready");
         statusText.setTextSize(14f);
         statusText.setTextColor(Color.rgb(65, 45, 34));
-        statusText.setPadding(0, dp(12), 0, dp(10));
+        statusText.setPadding(0, dp(10), 0, 0);
         root.addView(statusText);
-
-        preview = new ImageView(this);
-        preview.setBackgroundColor(Color.rgb(241, 224, 204));
-        preview.setAdjustViewBounds(true);
-        preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        root.addView(preview, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(430)));
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
@@ -398,13 +410,27 @@ public class MainActivity extends Activity {
     }
 
     private void saveSettings() {
+        boolean useCustom = useCustomLocation != null && useCustomLocation.isChecked();
+        String city = customCity != null ? customCity.getText().toString().trim()
+            : prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung");
+        String language = customLanguage != null ? customLanguage.getText().toString().trim()
+            : prefs.getString(AppConfig.KEY_CUSTOM_LANGUAGE, "");
+        String character = characterSpinner != null
+            ? CharacterOptions.valueAt(characterSpinner.getSelectedItemPosition())
+            : prefs.getString(AppConfig.KEY_CHARACTER, "person");
+        String style = styleSpinner != null
+            ? StyleOptions.valueAt(styleSpinner.getSelectedItemPosition())
+            : prefs.getString(AppConfig.KEY_STYLE, "knitted");
+        boolean dynamicEnabled = dynamicWallpaperToggle != null && dynamicWallpaperToggle.isChecked();
         prefs.edit()
-            .putBoolean(AppConfig.KEY_USE_CUSTOM, useCustomLocation.isChecked())
-            .putString(AppConfig.KEY_CUSTOM_CITY, customCity.getText().toString().trim())
-            .putBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, useCustomLanguage.isChecked())
-            .putString(AppConfig.KEY_CUSTOM_LANGUAGE, customLanguage.getText().toString().trim())
-            .putString(AppConfig.KEY_CHARACTER, CharacterOptions.valueAt(characterSpinner.getSelectedItemPosition()))
-            .putString(AppConfig.KEY_STYLE, StyleOptions.valueAt(styleSpinner.getSelectedItemPosition()))
+            .putBoolean(AppConfig.KEY_USE_CUSTOM, useCustom)
+            .putString(AppConfig.KEY_CUSTOM_CITY, city)
+            .putBoolean(AppConfig.KEY_USE_CUSTOM_LANGUAGE, useCustomLanguage != null && useCustomLanguage.isChecked())
+            .putString(AppConfig.KEY_CUSTOM_LANGUAGE, language)
+            .putString(AppConfig.KEY_CHARACTER, character)
+            .putString(AppConfig.KEY_STYLE, style)
+            .putBoolean(AppConfig.KEY_DYNAMIC_ENABLED, dynamicEnabled)
+            .putString(AppConfig.KEY_WALLPAPER_MODE, dynamicEnabled ? AppConfig.WALLPAPER_MODE_DYNAMIC : AppConfig.WALLPAPER_MODE_STATIC)
             .putString(AppConfig.KEY_UPDATE_MINUTES, Integer.toString(AppConfig.DEFAULT_UPDATE_MINUTES))
             .putString(AppConfig.KEY_WEATHER_BACKEND_URL, "")
             .putString(AppConfig.KEY_THEME_SERVER_URL, AppConfig.DEFAULT_THEME_SERVER_URL)
@@ -644,6 +670,82 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void loadCachedPreview() {
+        Bitmap cached = WallpaperStore.load(this);
+        if (cached == null) {
+            if (statusText != null) statusText.setText("Status: waiting for latest wallpaper...");
+            return;
+        }
+        if (preview != null) {
+            preview.setImageBitmap(Bitmap.createScaledBitmap(cached, 360, 640, true));
+        }
+        if (statusText != null) statusText.setText("Status: latest cached wallpaper loaded.");
+    }
+
+    private void syncLatestWallpaper(boolean force) {
+        if (syncInProgress) return;
+        long now = System.currentTimeMillis();
+        long lastSync = prefs.getLong(AppConfig.KEY_LAST_SYNC_MS, 0L);
+        if (!force && now - lastSync < AUTO_SYNC_INTERVAL_MS) return;
+        syncInProgress = true;
+        status("Status: syncing latest wallpaper...");
+        executor.execute(() -> {
+            try {
+                WeatherScene scene = SceneResolver.resolve(this);
+                Bitmap bitmap = ServerWallpaperClient.fetchOrCreate(this, scene);
+                boolean dynamicEnabled = prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false);
+                if (bitmap == null) {
+                    Bitmap cached = WallpaperStore.load(this);
+                    if (cached != null) {
+                        Bitmap cachedPreview = cached;
+                        runOnUiThread(() -> {
+                            if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(cachedPreview, 360, 640, true));
+                            if (statusText != null) statusText.setText("Status: server unavailable. Keeping latest wallpaper. " + ServerWallpaperClient.lastError());
+                        });
+                    } else {
+                        status("Status: server unavailable. No cached wallpaper found yet. " + ServerWallpaperClient.lastError());
+                    }
+                    return;
+                }
+
+                prefs.edit()
+                    .putLong(AppConfig.KEY_LAST_SYNC_MS, System.currentTimeMillis())
+                    .putString(AppConfig.KEY_LAST_SCENE_KEY, SceneKeys.forContext(this, scene))
+                    .apply();
+
+                if (!dynamicEnabled) {
+                    try {
+                        WallpaperManager.getInstance(this).setBitmap(bitmap);
+                    } catch (Exception error) {
+                        status("Status: wallpaper downloaded, but static apply failed. " + error.getMessage());
+                    }
+                }
+
+                Bitmap previewBitmap = bitmap;
+                runOnUiThread(() -> {
+                    if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(previewBitmap, 360, 640, true));
+                    if (statusText != null) {
+                        String mode = dynamicEnabled ? "dynamic cache updated" : "static wallpaper updated";
+                        statusText.setText("Status: " + mode + " for " + scene.cityEnglish + ", " + scene.weather + ".");
+                    }
+                });
+            } catch (Exception error) {
+                Bitmap cached = WallpaperStore.load(this);
+                if (cached != null) {
+                    Bitmap cachedPreview = cached;
+                    runOnUiThread(() -> {
+                        if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(cachedPreview, 360, 640, true));
+                        if (statusText != null) statusText.setText("Status: connection error. Keeping latest wallpaper. " + error.getMessage());
+                    });
+                } else {
+                    status("Status: connection error. No cached wallpaper found yet. " + error.getMessage());
+                }
+            } finally {
+                syncInProgress = false;
+            }
+        });
+    }
+
     private void applyCachedWallpaper(String message) {
         applyCachedWallpaper(message, AppConfig.WALLPAPER_MODE_STATIC.equals(
             prefs.getString(AppConfig.KEY_WALLPAPER_MODE, AppConfig.WALLPAPER_MODE_STATIC)));
@@ -709,7 +811,9 @@ public class MainActivity extends Activity {
     }
 
     private void status(String message) {
-        runOnUiThread(() -> statusText.setText(message));
+        runOnUiThread(() -> {
+            if (statusText != null) statusText.setText(message);
+        });
     }
 
     private int dp(int value) {
@@ -732,6 +836,8 @@ class AppConfig {
     static final String KEY_UPDATE_MINUTES = "update_minutes";
     static final String KEY_LAST_SCENE_KEY = "last_scene_key";
     static final String KEY_LAST_SERVER_FILE = "last_server_file";
+    static final String KEY_LAST_SYNC_MS = "last_sync_ms";
+    static final String KEY_DYNAMIC_ENABLED = "dynamic_enabled";
     static final String KEY_WALLPAPER_MODE = "wallpaper_mode";
     static final String WALLPAPER_MODE_STATIC = "static";
     static final String WALLPAPER_MODE_DYNAMIC = "dynamic";
@@ -1008,11 +1114,13 @@ class ServerWallpaperClient {
             String separator = base.contains("?") ? "&" : "?";
             String requestUrl = base.trim()
                 + separator + "city=" + enc(scene.cityEnglish)
+                + "&loc=" + enc(scene.cityEnglish)
                 + "&cityLocal=" + enc(scene.cityLocal)
                 + "&country=" + enc(scene.country)
                 + "&date=" + enc(scene.date)
                 + "&weather=" + enc(scene.weather)
                 + "&period=" + enc(scene.timePeriod)
+                + "&serverWeather=1"
                 + "&character=" + enc(prefs.getString(AppConfig.KEY_CHARACTER, "person"))
                 + "&style=" + enc(prefs.getString(AppConfig.KEY_STYLE, "knitted"))
                 + "&tempMin=" + scene.tempMin

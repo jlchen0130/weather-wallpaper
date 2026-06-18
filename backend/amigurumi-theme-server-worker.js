@@ -188,7 +188,7 @@ export default {
 async function wallpaperResponse(request, env, ctx) {
   assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
   const url = new URL(request.url);
-  const scene = parseClientScene(url);
+  const scene = await completeScene(parseClientScene(url), url, env);
   const objectKey = buildWallpaperKey(scene);
   const cached = await env.WALLPAPER_BUCKET.get(objectKey);
 
@@ -258,6 +258,56 @@ function parseClientScene(url) {
   const style = normalizeStyle(firstParam(url, ["style", "themeStyle"]) || DEFAULT_STYLE);
   const festival = detectFestival(new Date());
   return { city, weather, period, character, style, festival };
+}
+
+async function completeScene(scene, url, env) {
+  if (url.searchParams.get("serverWeather") !== "1") return scene;
+  const serverWeather = await fetchServerWeather(scene, url, env);
+  return {
+    ...scene,
+    weather: serverWeather || scene.weather,
+    period: currentServerPeriod()
+  };
+}
+
+async function fetchServerWeather(scene, url, env) {
+  if (!env.OPENWEATHER_API_KEY) return "";
+  try {
+    const api = new URL("https://api.openweathermap.org/data/2.5/weather");
+    const lat = url.searchParams.get("lat");
+    const lon = url.searchParams.get("lon");
+    if (lat && lon) {
+      api.searchParams.set("lat", lat);
+      api.searchParams.set("lon", lon);
+    } else {
+      api.searchParams.set("q", `${scene.city},TW`);
+    }
+    api.searchParams.set("units", "metric");
+    api.searchParams.set("appid", env.OPENWEATHER_API_KEY);
+    const response = await fetch(api);
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.log(JSON.stringify({ level: "warn", event: "server_weather_failed", city: scene.city, status: response.status }));
+      return "";
+    }
+    return normalizeWeather(body?.weather?.[0]?.main || body?.weather?.[0]?.description || "");
+  } catch (error) {
+    console.log(JSON.stringify({ level: "warn", event: "server_weather_exception", city: scene.city, message: error?.message || String(error) }));
+    return "";
+  }
+}
+
+function currentServerPeriod() {
+  const hour = Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Taipei",
+    hour: "2-digit",
+    hour12: false
+  }).format(new Date()));
+  if (hour >= 4 && hour <= 6) return "morning";
+  if (hour >= 7 && hour <= 15) return "afternoon";
+  if (hour >= 16 && hour <= 18) return "sunset";
+  if (hour >= 19 && hour <= 22) return "night";
+  return "midnight";
 }
 
 function buildWallpaperKey(scene) {

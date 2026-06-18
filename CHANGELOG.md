@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.30
+
+- Simplified the phone home screen to show only the latest wallpaper preview and sync status.
+- Moved location mode, custom city, character, style, dynamic wallpaper preference, and app update into the settings screen.
+- Added automatic wallpaper sync on app launch and hourly checks after launch.
+- Removed the manual dynamic wallpaper apply flow from the home screen; dynamic mode now updates through the cached live wallpaper source.
+- Added server-weather request signaling so the Worker can use OpenWeather from the server side for newer clients.
+
 ## 4.20
 
 - Fixed app update version parsing. Older 4.1 builds parsed `v4.2` as `402`, so this release uses `v4.20` while keeping Android `versionCode=420`.
