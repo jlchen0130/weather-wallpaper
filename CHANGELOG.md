@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.33
+
+- Fixed phone status handling for HTTP 304 server responses.
+- The app now reads the Worker `x-wallpaper-status` header and shows whether the server is still generating, hit a daily limit, or had a temporary generation failure instead of incorrectly showing "server unavailable".
+
 ## 4.32
 
 - Increased server wallpaper JSON request timeout from 30 seconds to 120 seconds so first-time OpenAI-generated wallpapers can complete instead of falling back to the previous cached wallpaper.

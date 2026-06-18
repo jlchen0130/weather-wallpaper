@@ -19,8 +19,8 @@ android {
         applicationId = "com.codex.amigurumiweather"
         minSdk = 26
         targetSdk = 36
-        versionCode = 432
-        versionName = "4.32"
+        versionCode = 433
+        versionName = "4.33"
     }
 
     flavorDimensions += "device"

@@ -696,14 +696,19 @@ public class MainActivity extends Activity {
                 boolean dynamicEnabled = prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false);
                 if (bitmap == null) {
                     Bitmap cached = WallpaperStore.load(this);
+                    String statusMessage = ServerWallpaperClient.lastNotModified()
+                        ? "Status: server checked. Keeping latest wallpaper. " + ServerWallpaperClient.lastError()
+                        : "Status: server unavailable. Keeping latest wallpaper. " + ServerWallpaperClient.lastError();
                     if (cached != null) {
                         Bitmap cachedPreview = cached;
                         runOnUiThread(() -> {
                             if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(cachedPreview, 360, 640, true));
-                            if (statusText != null) statusText.setText("Status: server unavailable. Keeping latest wallpaper. " + ServerWallpaperClient.lastError());
+                            if (statusText != null) statusText.setText(statusMessage);
                         });
                     } else {
-                        status("Status: server unavailable. No cached wallpaper found yet. " + ServerWallpaperClient.lastError());
+                        status(ServerWallpaperClient.lastNotModified()
+                            ? "Status: server checked, but no cached wallpaper found yet. " + ServerWallpaperClient.lastError()
+                            : "Status: server unavailable. No cached wallpaper found yet. " + ServerWallpaperClient.lastError());
                     }
                     return;
                 }
@@ -1150,7 +1155,7 @@ class ServerWallpaperClient {
             return bitmap;
         } catch (NotModifiedException notModified) {
             lastNotModified = true;
-            lastError = "Server has no newer wallpaper. Keeping current wallpaper.";
+            lastError = friendlyNotModifiedReason(notModified.reason());
             return null;
         } catch (Exception error) {
             lastNotModified = false;
@@ -1170,6 +1175,25 @@ class ServerWallpaperClient {
             builder.append(values.get(i));
         }
         return builder.toString();
+    }
+
+    private static String friendlyNotModifiedReason(String reason) {
+        if (reason == null || reason.trim().isEmpty()) {
+            return "No newer wallpaper is available. Keeping current wallpaper.";
+        }
+        if ("generation_already_pending_keep_current_wallpaper".equals(reason)) {
+            return "Server is still generating this wallpaper. Keeping current wallpaper.";
+        }
+        if ("daily_generation_limit_keep_current_wallpaper".equals(reason)) {
+            return "Daily image generation limit reached. Keeping current wallpaper.";
+        }
+        if ("generation_failed_keep_current_wallpaper".equals(reason)) {
+            return "Server image generation failed. Keeping current wallpaper.";
+        }
+        if ("worker_exception".equals(reason)) {
+            return "Server reported a temporary error. Keeping current wallpaper.";
+        }
+        return reason.replace("_", " ");
     }
 }
 
@@ -1715,7 +1739,7 @@ class Http {
     static String read(HttpURLConnection connection) throws Exception {
         int code = connection.getResponseCode();
         if (code == 304) {
-            throw new NotModifiedException();
+            throw new NotModifiedException(connection.getHeaderField("x-wallpaper-status"));
         }
         BufferedReader reader = new BufferedReader(new InputStreamReader(
             code >= 200 && code <= 299
@@ -1734,6 +1758,15 @@ class Http {
 }
 
 class NotModifiedException extends Exception {
+    private final String reason;
+
+    NotModifiedException(String reason) {
+        this.reason = reason;
+    }
+
+    String reason() {
+        return reason;
+    }
 }
 
 class LocalWallpaperRenderer {
