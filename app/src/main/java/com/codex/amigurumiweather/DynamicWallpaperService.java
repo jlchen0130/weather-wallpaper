@@ -109,7 +109,7 @@ public class DynamicWallpaperService extends WallpaperService {
                     String oldKey = prefs.getString(AppConfig.KEY_LAST_SCENE_KEY, "");
                     String newKey = SceneKeys.forContext(DynamicWallpaperService.this, next);
                     Bitmap latest = WallpaperStore.load(DynamicWallpaperService.this);
-                    if (background == null && latest != null) background = latest;
+                    if (latest != null) background = latest;
                     scene = next;
                     if (!newKey.equals(oldKey) || background == null) {
                         Bitmap generated = fetchRequiredWallpaper(next);

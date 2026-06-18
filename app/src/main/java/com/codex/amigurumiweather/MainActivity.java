@@ -702,10 +702,19 @@ public class MainActivity extends Activity {
                         ? "Status: server checked. Keeping latest wallpaper. " + ServerWallpaperClient.lastError()
                         : "Status: server unavailable. Keeping latest wallpaper. " + ServerWallpaperClient.lastError();
                     if (cached != null) {
+                        if (!dynamicEnabled) {
+                            try {
+                                WallpaperManager.getInstance(this).setBitmap(cached);
+                                statusMessage = statusMessage + " Cached wallpaper applied.";
+                            } catch (Exception error) {
+                                statusMessage = statusMessage + " Cached apply failed: " + error.getMessage();
+                            }
+                        }
                         Bitmap cachedPreview = cached;
+                        String finalStatusMessage = statusMessage;
                         runOnUiThread(() -> {
                             if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(cachedPreview, 360, 640, true));
-                            if (statusText != null) statusText.setText(statusMessage);
+                            if (statusText != null) statusText.setText(finalStatusMessage);
                         });
                     } else {
                         status(ServerWallpaperClient.lastNotModified()
@@ -739,10 +748,21 @@ public class MainActivity extends Activity {
             } catch (Exception error) {
                 Bitmap cached = WallpaperStore.load(this);
                 if (cached != null) {
+                    boolean dynamicEnabled = prefs.getBoolean(AppConfig.KEY_DYNAMIC_ENABLED, false);
+                    String message = "Status: connection error. Keeping latest wallpaper. " + error.getMessage();
+                    if (!dynamicEnabled) {
+                        try {
+                            WallpaperManager.getInstance(this).setBitmap(cached);
+                            message = message + " Cached wallpaper applied.";
+                        } catch (Exception applyError) {
+                            message = message + " Cached apply failed: " + applyError.getMessage();
+                        }
+                    }
                     Bitmap cachedPreview = cached;
+                    String finalMessage = message;
                     runOnUiThread(() -> {
                         if (preview != null) preview.setImageBitmap(Bitmap.createScaledBitmap(cachedPreview, 360, 640, true));
-                        if (statusText != null) statusText.setText("Status: connection error. Keeping latest wallpaper. " + error.getMessage());
+                        if (statusText != null) statusText.setText(finalMessage);
                     });
                 } else {
                     status("Status: connection error. No cached wallpaper found yet. " + error.getMessage());

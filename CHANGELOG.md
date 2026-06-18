@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.35
+
+- Fixed a mismatch where the app preview could show the latest cached wallpaper while the actual phone wallpaper still displayed an older image.
+- Static wallpaper mode now applies the latest cached wallpaper when server or DNS lookup fails.
+- Dynamic wallpaper mode now reloads the latest cached image on each refresh so the live wallpaper service does not keep an older in-memory background.
+
 ## 4.34
 
 - Added an hourly background wallpaper sync receiver using AlarmManager.
