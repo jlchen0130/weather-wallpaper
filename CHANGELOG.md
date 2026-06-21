@@ -1,5 +1,11 @@
 # Changelog
 
+## Server 2026-06-21
+
+- Fixed daily wallpaper refresh so an R2 object is reused only when its `generatedDate` matches the current Taipei date; stale objects are regenerated and overwritten under the same key.
+- Updated the Worker `OPENAI_API_KEY` secret from the validated image-generator token source.
+- Increased the OpenAI Image generation timeout from 55 seconds to 100 seconds and added sanitized generation failure logging.
+
 ## 4.35
 
 - Fixed a mismatch where the app preview could show the latest cached wallpaper while the actual phone wallpaper still displayed an older image.

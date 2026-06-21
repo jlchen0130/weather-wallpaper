@@ -192,7 +192,7 @@ async function wallpaperResponse(request, env, ctx) {
   const objectKey = buildWallpaperKey(scene);
   const cached = await env.WALLPAPER_BUCKET.get(objectKey);
 
-  if (cached) {
+  if (cached && isCurrentDailyWallpaper(cached)) {
     return wallpaperJson(url, scene, objectKey, true);
   }
 
@@ -232,12 +232,22 @@ async function wallpaperResponse(request, env, ctx) {
         period: scene.period,
         weather: scene.weather,
         source: "openai-image-api",
-        generatedDate: new Date().toISOString().slice(0, 10),
+        generatedDate: currentDateKey(),
         generatedAt: new Date().toISOString()
       }
     });
     return wallpaperJson(url, scene, objectKey, false);
   } catch (error) {
+    console.log(JSON.stringify({
+      level: "error",
+      event: "wallpaper_generation_failed",
+      message: error?.message || String(error),
+      city: scene.city,
+      period: scene.period,
+      weather: scene.weather,
+      character: scene.character,
+      style: scene.style
+    }));
     waitUntilSafe(ctx, sendTelegramAlert(env, {
       title: "OpenAI wallpaper generation failed",
       error,
@@ -324,13 +334,29 @@ function buildWallpaperKey(scene) {
 async function countDailyGenerations(env, scene) {
   const prefix = `wallpaper/${filenamePart(scene.style)}/`;
   const listed = await env.WALLPAPER_BUCKET.list({ prefix, limit: 1000 });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = currentDateKey();
   return (listed.objects || []).filter((object) => {
     const metadata = object.customMetadata || {};
     return metadata.source === "openai-image-api"
       && metadata.generatedDate === today
       && metadata.city === scene.city;
   }).length;
+}
+
+function isCurrentDailyWallpaper(object) {
+  const metadata = object?.customMetadata || {};
+  return metadata.generatedDate === currentDateKey();
+}
+
+function currentDateKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
 }
 
 function dailyGenerationLimit(env) {
@@ -348,7 +374,7 @@ async function generateWallpaper(env, scene) {
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
   const prompt = buildPrompt(scene);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 55000);
+  const timeout = setTimeout(() => controller.abort(), 100000);
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
     signal: controller.signal,
