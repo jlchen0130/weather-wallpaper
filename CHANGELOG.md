@@ -1,5 +1,11 @@
 # Changelog
 
+## Server 2026-06-25
+
+- Restored the admin manual upload endpoint at `/admin/upload`.
+- Unified manual uploads and server-generated wallpapers under `wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.<ext>`.
+- Admin uploads now keep the uploaded file extension/content type and store metadata in R2 with `source=manual-chatgpt-upload`.
+
 ## Server 2026-06-21
 
 - Fixed daily wallpaper refresh so an R2 object is reused only when its `generatedDate` matches the current Taipei date; stale objects are regenerated and overwritten under the same key.

@@ -10,7 +10,8 @@
 - R2 bucket: `amigurumi-weather-wallpapers`
 - R2 binding: `WALLPAPER_BUCKET`
 - R2 object key:
-  `wallpaper/<style>/<festival>_<char>_<loc>_<period>_<weather>.mp4`
+  `wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.<ext>`
+  Admin manual uploads preserve the uploaded extension/content type. Server-generated OpenAI Image payloads use `.png`.
 - 注意：目前 key 保留 `.mp4` 相容命名，但 payload 是 OpenAI Image API 產生的 PNG image。API response 會回：
   - `content_type: image/png`
   - `asset_kind: generated_image`

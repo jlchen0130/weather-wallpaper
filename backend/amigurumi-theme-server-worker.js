@@ -155,13 +155,14 @@ export default {
     try {
       if (request.method === "OPTIONS") return cors();
       if (url.pathname.startsWith("/files/")) return serveR2File(url, env);
+      if (url.pathname === "/admin/upload") return adminUploadResponse(request, env);
       if (url.pathname === "/health") return json({ ok: true, service: "weather-wallpaper-server" });
       if (isWeatherRequest(url)) return weatherCompatibilityResponse(url, env);
       if (isWallpaperRequest(url)) return wallpaperResponse(request, env, ctx);
       return json({
         service: "weather-wallpaper-server",
         compatible_params: ["loc", "city", "cityLocal", "weather", "period", "char", "character", "style"],
-        object_key_format: "wallpaper/<style>/<festival>_<char>_<loc>_<period>_<weather>.mp4"
+        object_key_format: "wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.<ext>"
       });
     } catch (error) {
       waitUntilSafe(ctx, sendTelegramAlert(env, {
@@ -189,7 +190,7 @@ async function wallpaperResponse(request, env, ctx) {
   assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
   const url = new URL(request.url);
   const scene = await completeScene(parseClientScene(url), url, env);
-  const objectKey = buildWallpaperKey(scene);
+  const objectKey = buildWallpaperKey(scene, "png");
   const cached = await env.WALLPAPER_BUCKET.get(objectKey);
 
   if (cached && isCurrentDailyWallpaper(cached)) {
@@ -259,6 +260,51 @@ async function wallpaperResponse(request, env, ctx) {
   }
 }
 
+async function adminUploadResponse(request, env) {
+  assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const expectedToken = env.MANUAL_UPLOAD_TOKEN || env.ADMIN_UPLOAD_TOKEN || "";
+  if (!expectedToken) return json({ error: "Manual upload token is not configured" }, 503);
+
+  const requestContentType = request.headers.get("content-type") || "";
+  if (!requestContentType.toLowerCase().includes("multipart/form-data")) {
+    return json({ error: "Expected multipart/form-data upload" }, 400);
+  }
+
+  const form = await request.formData();
+  const providedToken = String(form.get("token") || "");
+  if (!timingSafeEqual(providedToken, expectedToken)) return json({ error: "Unauthorized" }, 401);
+
+  const image = form.get("image");
+  if (!image || typeof image.arrayBuffer !== "function") {
+    return json({ error: "Missing image file" }, 400);
+  }
+
+  const scene = parseAdminScene(form);
+  const contentType = sanitizeContentType(image.type || "image/png");
+  const extension = extensionForContentType(contentType);
+  const objectKey = buildWallpaperKey(scene, extension);
+  const bytes = await image.arrayBuffer();
+
+  await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
+    httpMetadata: { contentType },
+    customMetadata: {
+      style: scene.style,
+      festival: scene.festival,
+      character: scene.character,
+      city: scene.city,
+      period: scene.period,
+      weather: scene.weather,
+      source: "manual-chatgpt-upload",
+      generatedDate: currentDateKey(),
+      generatedAt: new Date().toISOString()
+    }
+  });
+
+  return wallpaperJson(new URL(request.url), scene, objectKey, false, contentType, "manual_uploaded");
+}
+
 function parseClientScene(url) {
   const rawLoc = firstParam(url, ["loc", "city", "cityEnglish", "cityLocal", "location"]) || DEFAULT_CITY;
   const city = normalizeCity(rawLoc);
@@ -320,19 +366,19 @@ function currentServerPeriod() {
   return "midnight";
 }
 
-function buildWallpaperKey(scene) {
+function buildWallpaperKey(scene, extension = "png") {
   const fileName = [
     scene.festival,
-    scene.character,
     scene.city,
+    scene.character,
     scene.period,
     scene.weather
   ].map(filenamePart).join("_");
-  return `wallpaper/${filenamePart(scene.style)}/${fileName}.mp4`;
+  return `wallpaper/${filenamePart(scene.style)}/${filenamePart(scene.character)}/${fileName}.${filenamePart(extension)}`;
 }
 
 async function countDailyGenerations(env, scene) {
-  const prefix = `wallpaper/${filenamePart(scene.style)}/`;
+  const prefix = `wallpaper/${filenamePart(scene.style)}/${filenamePart(scene.character)}/`;
   const listed = await env.WALLPAPER_BUCKET.list({ prefix, limit: 1000 });
   const today = currentDateKey();
   return (listed.objects || []).filter((object) => {
@@ -425,15 +471,15 @@ function buildPrompt(scene) {
   ].join("\n");
 }
 
-function wallpaperJson(url, scene, objectKey, reused) {
+function wallpaperJson(url, scene, objectKey, reused, contentType = "image/png", cache = null) {
   return json({
     file_name: objectKey.split("/").pop(),
     object_key: objectKey,
     image_url: fileUrl(url, objectKey),
-    content_type: "image/png",
+    content_type: contentType,
     asset_kind: "generated_image",
     reused,
-    cache: reused ? "hit" : "miss_generated",
+    cache: cache || (reused ? "hit" : "miss_generated"),
     city: scene.city,
     weather: scene.weather,
     period: scene.period,
@@ -620,6 +666,26 @@ function safeSceneFromUrl(url) {
   }
 }
 
+function parseAdminScene(form) {
+  const date = new Date(String(form.get("date") || ""));
+  const festivalDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  return {
+    city: normalizeCity(form.get("city") || form.get("cityLocal") || form.get("loc") || DEFAULT_CITY),
+    weather: normalizeWeather(form.get("weather") || DEFAULT_WEATHER),
+    period: normalizePeriod(form.get("period") || DEFAULT_PERIOD),
+    character: normalizeCharacter(form.get("character") || form.get("char") || DEFAULT_CHARACTER),
+    style: normalizeStyle(form.get("style") || DEFAULT_STYLE),
+    festival: normalizeFestival(form.get("festival")) || detectFestival(festivalDate)
+  };
+}
+
+function normalizeFestival(value) {
+  const clean = String(value || "").trim().toLowerCase();
+  if (!clean) return "";
+  if (clean === "none" || clean === "no" || clean === "null") return "none";
+  return filenamePart(clean);
+}
+
 function assertBinding(binding, name) {
   if (!binding) throw new Error(`${name} binding is not configured`);
 }
@@ -635,6 +701,31 @@ function filenamePart(value) {
     .replace(/\s+/g, "")
     .replace(/_+/g, "_")
     .slice(0, 80) || "unknown";
+}
+
+function sanitizeContentType(value) {
+  const clean = String(value || "image/png").toLowerCase();
+  if (clean.includes("jpeg")) return "image/jpeg";
+  if (clean.includes("jpg")) return "image/jpeg";
+  if (clean.includes("webp")) return "image/webp";
+  if (clean.includes("mp4")) return "video/mp4";
+  return "image/png";
+}
+
+function extensionForContentType(contentType) {
+  if (contentType === "image/jpeg") return "jpg";
+  if (contentType === "image/webp") return "webp";
+  if (contentType === "video/mp4") return "mp4";
+  return "png";
+}
+
+function timingSafeEqual(left, right) {
+  if (left.length !== right.length) return false;
+  let result = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 function escapeTelegram(value) {
@@ -666,7 +757,7 @@ function cors() {
   return new Response(null, {
     headers: {
       "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET, OPTIONS",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
       "access-control-allow-headers": "content-type, authorization"
     }
   });
