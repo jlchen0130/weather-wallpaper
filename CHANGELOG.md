@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.36
+
+- Added Typhoon to the admin APK weather selector.
+- Added backend weather normalization for `typhoon` so uploaded/manual wallpapers can use typhoon-specific R2 keys.
+- Added festival detection for Taiwan National Day (`national_day` on 10-10) and Constitution Day (`constitution_day` on 12-25); Western Valentine's Day remains `valentines_day` on 02-14.
+
 ## Server 2026-06-25
 
 - Restored the admin manual upload endpoint at `/admin/upload`.

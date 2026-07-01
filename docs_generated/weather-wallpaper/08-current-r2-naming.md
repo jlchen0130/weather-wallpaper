@@ -10,10 +10,10 @@ Notes:
 
 - `style`: `knitted` or `colored_pencil`.
 - `char`: `person`, `cat`, `dog`, `hamster_chinchilla`, or `parrot`.
-- `festival`: `none` when there is no festival.
+- `festival`: `none` when there is no festival. Current fixed-date festivals include `valentines_day` on 02-14, `national_day` on 10-10, and `constitution_day` on 12-25.
 - `city`: normalized city-level name, for example `Kaohsiung`.
 - `period`: normalized period, for example `morning`, `afternoon`, `sunset`, `night`, or `midnight`.
-- `weather`: normalized weather, for example `sunny`, `cloudy`, `rainy`, or `thunder`.
+- `weather`: normalized weather, for example `sunny`, `cloudy`, `rainy`, `thunder`, or `typhoon`.
 - `ext`: follows the actual uploaded/generated content type, such as `png`, `jpg`, `webp`, or `mp4`.
 
 Examples:

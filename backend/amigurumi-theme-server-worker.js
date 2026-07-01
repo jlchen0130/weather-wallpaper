@@ -600,6 +600,7 @@ function normalizeCity(value) {
 
 function normalizeWeather(value) {
   const clean = String(value || DEFAULT_WEATHER).trim().toLowerCase();
+  if (/(typhoon|hurricane|cyclone|tropical\s*storm|tornado|\u98b1\u98a8|\u53f0\u98ce)/i.test(clean)) return "typhoon";
   if (/(thunder|storm|雷|閃電|闪电|hail|冰雹)/i.test(clean)) return "thunder";
   if (/(rain|drizzle|shower|雨|陣雨|阵雨|豪雨|暴雨|snow|雪|sleet|凍雨|冻雨)/i.test(clean)) return "rainy";
   if (/(clear|sun|晴)/i.test(clean)) return "sunny";
@@ -632,8 +633,9 @@ function detectFestival(date) {
   const festivals = {
     "01-01": "new_year",
     "02-14": "valentines_day",
+    "10-10": "national_day",
     "10-31": "halloween",
-    "12-25": "christmas"
+    "12-25": "constitution_day"
   };
   return festivals[md] || "none";
 }
