@@ -4,8 +4,13 @@ app/build/
 local.properties
 work/
 node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
 *.keystore
 *.jks
+*.apk
 *.apk.idsig
 
 # APK deliverables are published through release channels, not committed.
