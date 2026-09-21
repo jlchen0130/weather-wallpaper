@@ -9,6 +9,7 @@
 - Android App 根據城市、天氣、角色、畫風、節日與六個時段請求桌布。
 - Worker 只查詢 R2；命中就回傳 PNG，缺圖則回 `HTTP 304`，手機保留現有桌布。
 - Admin App 僅接受 PNG，上限 12 MiB。Token 只存在目前輸入欄位，不寫入 SharedPreferences。
+- Windows 提示詞產生器只負責組合 Gemini／其他 AI agent 可用的提示詞，不具有 Admin 上傳或 API 產圖功能。
 - GitHub 儲存庫保存程式碼與文字文件，不保存 APK。
 - 私人 GitHub 不作為 App 自動更新來源；未來需要更新時，另將必要安裝檔放到公開發佈區。
 
@@ -67,7 +68,7 @@ MANUAL_UPLOAD_TOKEN
 
 ## 提示詞
 
-提示詞總表位於 [`prompts/README.md`](prompts/README.md)，機器可讀版本為 [`prompts/prompt-catalog.json`](prompts/prompt-catalog.json)。已退役的 Worker OpenAI 提示詞僅保留歷史紀錄，不存在於 Worker 執行碼。
+提示詞總表位於 [`prompts/README.md`](prompts/README.md)，機器可讀版本為 [`prompts/prompt-catalog.json`](prompts/prompt-catalog.json)。Windows 產生器位於 [`windows/WeatherWallpaperPromptGenerator`](windows/WeatherWallpaperPromptGenerator)，可根據任意城市、天氣、時段、節慶與畫風產生提示詞。已退役的 Worker OpenAI 提示詞僅保留歷史紀錄，不存在於 Worker 執行碼。
 
 ## 驗證
 

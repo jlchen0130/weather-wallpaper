@@ -1,6 +1,6 @@
 # 提示詞匯出目錄
 
-更新日期：2026-09-20
+更新日期：2026-09-21
 
 本目錄記錄專案內所有會組合成圖像生成提示詞的模板與片段。完整、機器可讀的版本位於 [`prompt-catalog.json`](./prompt-catalog.json)。
 
@@ -9,6 +9,7 @@
 | ID | 狀態 | 執行位置 | 原始程式 |
 | --- | --- | --- | --- |
 | `admin-manual-v1` | 目前主要流程 | Android Admin App，複製到 ChatGPT 手動產圖 | `MainActivity.buildAdminPrompt()` |
+| `windows-agent-prompt-v1` | 目前可用工具 | Windows WPF 提示詞產生器 | `windows/WeatherWallpaperPromptGenerator/.../PromptBuilder.cs` |
 | `worker-openai-v1` | 已退役，僅歷史紀錄 | 已從 Cloudflare Worker 執行碼移除 | 舊 `buildPrompt(scene)` 匯出內容 |
 | `legacy-client-v1` | 舊版保留，目前未發現呼叫點 | Android 端舊 `PromptBuilder` | `PromptBuilder.build(scene)` |
 
@@ -37,6 +38,7 @@ Avoid text, logo, watermark, phone UI, clock, date, battery, signal icons, app l
 ## 使用注意
 
 - 目前主要營運流程是手動將 `admin-manual-v1` 貼到 ChatGPT 產圖，再由 Admin App 上傳 R2。
+- `windows-agent-prompt-v1` 不呼叫 API；它要求具搜尋能力的 AI agent 先查證指定城市景點與地標、排除錯誤資料，再把完整清單納入同一幅 9:16 PNG 桌布構圖。
 - Worker 自動產圖已永久移除；`worker-openai-v1` 只保留在提示詞目錄作歷史紀錄，不可作為備援執行路徑。
 - 三套模板的景點數量規則不同：Admin 寫 8 個；Worker 寫 2 到 4 個；舊版手機模板使用場景資料中的完整清單。這是現況紀錄，不在本次匯出中改寫。
 - 本目錄不得加入 API key、Cloudflare secret、GitHub token 或 Admin upload token。

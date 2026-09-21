@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a standalone Windows WPF prompt generator for Gemini and other AI agents.
+- Added comprehensive weather, six-period, city, optional festival, and four-style controls.
+- Added grounded landmark instructions that require agents to research the selected city, reject invented landmarks, and include the verified landmark set in the scene.
+- Added dependency-free smoke tests and a local single-file Windows publish workflow.
+
 ## 4.37
 
 - Permanently removed OpenAI Image API generation from the Worker runtime.

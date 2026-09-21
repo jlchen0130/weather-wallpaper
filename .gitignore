@@ -15,3 +15,8 @@ node_modules/
 
 # APK deliverables are published through release channels, not committed.
 outputs/
+
+# Windows prompt generator build artifacts are produced locally, not committed.
+windows/**/bin/
+windows/**/obj/
+windows/**/dist/
