@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "exportedAt": "2026-09-21",
+  "containsSecrets": false,
+  "templates": [
+    {
+      "id": "admin-manual-v1",
+      "status": "active_manual_workflow",
+      "source": "app/src/main/java/com/codex/amigurumiweather/MainActivity.java#buildAdminPrompt",
+      "delivery": "Copy or share from the Android Admin App, then paste into ChatGPT or another manual image generator.",
+      "defaults": {
+        "city": "Kaohsiung",
+        "country": "Taiwan",
+        "weather": "Cloudy",
+        "period": "Afternoon",
+        "character": "person",
+        "style": "knitted",
+        "temp_min": "27",
+        "temp_max": "32",
+        "landmarks": "85 Sky Tower|Love River|Pier-2 Art Center"
+      },
+      "template": "手機動態桌布插畫，直式 9:16，高解析度，溫暖可愛的童話氛圍。\n{{style_prompt}}\nCity: {{city}}. Country: {{country}}.\nWeather: {{weather}}. Time period: {{period}}. Temperature: {{temp_min}}C~{{temp_max}}C.\nLandmarks: {{landmarks_csv}}.\nBackground融合 8 個當地知名景點，以微縮地景與童話城市的方式自然分布，不要像拼貼。\nUse a distant wide-angle establishing view from a slightly elevated viewpoint, so landmarks are distributed naturally across the city scene with open sky and readable depth.\nIf the weather is sunny and hot, show soft golden sunlight, pale blue sky, fluffy white clouds, slight heat shimmer, tree shadows, and clear highlights.\n{{character_prompt}}\nCharacters should look active and varied, with poses that imply motion and daily life instead of standing still.\nAdd subtle visual motion cues suitable for a live wallpaper background: drifting clouds, tiny boats on water, walking poses, fluttering awnings, falling rain or snow when weather requires it, wind lines, sparkling highlights, and lively daily movement.\nKeep the upper sky area light, calm, open, and visually clean for phone time/date widgets.\nAvoid text, logo, watermark, phone UI, clock, date, battery, signal icons, app labels, temperature widgets, large labels, and poster-like typography.",
+      "stylePrompts": {
+        "knitted": "Use a premium handmade knitted and crochet amigurumi style: yarn texture, soft fiber depth, plush miniature buildings, crochet clouds, stitched details, and cozy handcrafted lighting suitable for a phone live wallpaper.",
+        "colored_pencil": "Use a refined colored pencil illustration style, soft paper grain, warm fairy-tale mood, clean depth, delicate hand-drawn strokes, gentle shading, and rich but soft color suitable for a phone live wallpaper."
+      },
+      "characterPrompts": {
+        "person": "Main character is a cute Q-version girl with a round face and big eyes, wearing fresh summer clothes, smiling in the foreground, holding a small fan and an iced drink, joined by a few friendly city residents in daily-life actions.",
+        "cat": "Main characters are varied cute Q-version cats: tabby cats, calico cats, black cats, white cats, orange cats, and fluffy round cats doing daily life actions.",
+        "dog": "Main characters are cute Q-version dogs of varied small breeds doing daily life actions, with friendly expressions and playful movement.",
+        "hamster_chinchilla": "Main characters are cute Q-version hamsters and chinchillas with round bodies, soft ears, tiny bags, and everyday city-life actions."
+      }
+    },
+    {
+      "id": "windows-agent-prompt-v1",
+      "status": "active_manual_workflow",
+      "source": "windows/WeatherWallpaperPromptGenerator/src/WeatherWallpaperPromptGenerator.Core/PromptBuilder.cs#Generate",
+      "delivery": "Generate in the standalone Windows WPF app, then paste into Gemini or another image-capable or grounded AI agent.",
+      "defaults": {
+        "city": "高雄",
+        "weather": "晴朗",
+        "period": "下午",
+        "festival": "",
+        "style": "針織品"
+      },
+      "weatherOptions": ["晴朗", "晴時多雲", "多雲", "陰天", "薄霧", "濃霧", "霾", "毛毛雨", "小雨", "中雨", "大雨", "豪雨", "陣雨", "雷陣雨", "雷暴", "強風", "颱風", "熱浪", "寒流", "下雪", "大雪", "暴雪", "雨夾雪", "凍雨", "冰雹", "沙塵暴"],
+      "periodOptions": ["上午", "下午", "傍晚", "晚上", "深夜", "清晨"],
+      "styleOptions": ["針織品", "色鉛筆", "Q版紙雕", "Q版漫畫"],
+      "template": "請建立一張可供 Android 動態桌布使用的高解析度直式 PNG 插畫，比例 9:16。城市：{{city}}。天氣：{{weather}}。時段：{{period}}。節慶：{{festival_or_none}}。畫風：{{style}}。使用可靠的網路搜尋、地圖或旅遊資料查證該城市境內所有公開可辨識的主要景點與地標，去除重複、已拆除或不屬於該城市的項目，不可杜撰。將查證後的完整景點與地標清單全部納入同一幅圖；數量很多時使用遠景、中景、近景與微縮城市分層安排，保持可辨識且不任意省略。頂部保留乾淨空間供手機時鐘與狀態資訊。禁止城市名稱、景點標籤、Logo、浮水印與手機 UI。只輸出最終圖片；不能直接產圖時，輸出已包含完整地標清單的最終圖像提示詞。"
+    },
+    {
+      "id": "worker-openai-v1",
+      "status": "retired_historical_record",
+      "source": "Historical export from the removed backend/amigurumi-theme-server-worker.js#buildPrompt",
+      "delivery": "Historical record only. The Worker no longer contains or executes this prompt.",
+      "imageSize": "1024x1536",
+      "template": "Create a vertical 9:16 high-resolution phone live wallpaper background.\nVisual style: {{style_prompt}}.\nScene: {{city}}, Taiwan, city-level only. Do not show districts, streets, or townships as the main identity.\nWeather mood: {{weather}}. Time period: {{period}}. Festival: {{festival}}.\nUse 2 to 4 recognizable local landmarks naturally in the distance: {{first_four_landmarks_csv}}.\n{{character_prompt}}.\nAdd subtle motion cues suitable for a live wallpaper: drifting clouds, soft light shimmer, rain streaks or lightning glow when weather requires it, walking poses, moving boats or scooters, fluttering fabric, and lively daily activity.\nKeep composition calm, premium, cute, and not crowded. Leave the top area clean enough for phone status and clock widgets.\nAvoid city-name title text, large labels, phone UI, clock, date, battery, signal icons, app labels, logos, and watermarks.",
+      "stylePrompts": {
+        "knitted": "premium handmade knitted crochet amigurumi style, yarn texture, plush miniature buildings, crochet clouds, stitched details, cozy handcrafted lighting",
+        "colored_pencil": "colored pencil illustration, soft paper grain, visible hand-drawn strokes, warm fairy-tale atmosphere, delicate shading"
+      },
+      "characterPrompts": {
+        "person": "Q-version cute people doing ordinary daily life actions such as walking, shopping, chatting, holding drinks, taking photos, and riding a tiny scooter",
+        "cat": "Q-version cute cats of different breeds doing daily life actions, walking, shopping, chatting, relaxing, and exploring the city",
+        "dog": "Q-version cute dogs doing daily life actions, walking with bags, playing, greeting friends, and exploring the city",
+        "hamster_chinchilla": "Q-version hamsters and chinchillas with round bodies doing daily life actions, carrying tiny bags and enjoying the city",
+        "parrot": "Q-version parrots with bright feathers doing daily life actions, perching, flying gently, shopping, and interacting with the city",
+        "fallback": "Q-version cute people doing daily life actions"
+      }
+    },
+    {
+      "id": "legacy-client-v1",
+      "status": "legacy_unreferenced",
+      "source": "app/src/main/java/com/codex/amigurumiweather/MainActivity.java#PromptBuilder.build",
+      "delivery": "Retained in Android source. No current call site was found during export.",
+      "template": "Create a premium Android wallpaper.\n\nCity:\n{{city_english}}\n\nDate:\n{{date}}\n\nTemperature:\n{{temp_min}}C~{{temp_max}}C\n\nWeather:\n{{weather}}\n\nTime:\n{{time_period}}\n\nTheme:\nMiniature Amigurumi crochet city.\n\nLandmarks:\n{{landmarks_comma_newline}}.\n\nAll buildings, vehicles, people, shops, trees, and roads are handmade crochet toys.\n\n{{language}} signs embroidered with yarn.\n\n{{weather_sky}}.\n\n{{weather_effect}}.\n\n{{time_prompt}}.\n\nCute Amigurumi people walking and chatting.\n\nKeep the upper sky area light, calm, open, and visually clean so phone time, date, and status widgets do not conflict.\n\nDo not write the city name anywhere in the image. Do not place a large title, header text, or location label in the sky.\n\nDo not draw phone UI, clock, date, temperature text, status bar, widgets, or app labels.\n\nLeave enough upper blank space so the Android lock screen can show its built-in clock and date without conflict.\n\nCrochet {{weather_lowercase}} weather icon.\n\nNo large readable headline text.\n\n9:16 portrait wallpaper.",
+      "weatherPrompts": {
+        "Sunny": { "sky": "pastel blue sky", "effect": "crochet sun" },
+        "Cloudy": { "sky": "knitted clouds", "effect": "soft diffuse lighting" },
+        "Rainy": { "sky": "dark knitted sky", "effect": "crochet rain drops" },
+        "Snowy": { "sky": "white winter yarn landscape", "effect": "crochet snowflakes" },
+        "Foggy": { "sky": "felt fog", "effect": "soft dreamy atmosphere" },
+        "fallback": { "sky": "knitted clouds", "effect": "soft diffuse lighting" }
+      },
+      "timePrompts": {
+        "sunraise": "pale dawn light",
+        "Morning": "soft sunrise",
+        "Afternoon": "mellow warm afternoon light",
+        "Sunset": "orange pink sky",
+        "Night": "warm street lights",
+        "Midnight": "deep blue quiet sky",
+        "fallback": "warm street lights"
+      }
+    }
+  ],
+  "knownDifferences": [
+    "admin-manual-v1 explicitly requests 8 landmarks but its default landmark input contains 3 entries.",
+    "worker-openai-v1 uses 2 to 4 landmarks and only the first four entries from the Worker city landmark list.",
+    "legacy-client-v1 is retained in source but no current call site was found.",
+    "The Worker automatic OpenAI image generation path was permanently removed. Its former prompt remains only in this catalog for project history."
+  ]
+}

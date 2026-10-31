@@ -1,10 +1,29 @@
 # Changelog
 
+## Unreleased
+
+- Added a standalone Windows WPF prompt generator for Gemini and other AI agents.
+- Added comprehensive weather, six-period, city, optional festival, and four-style controls.
+- Added grounded landmark instructions that require agents to research the selected city, reject invented landmarks, and include the verified landmark set in the scene.
+- Added dependency-free smoke tests and a local single-file Windows publish workflow.
+
+## 4.37
+
+- Permanently removed OpenAI Image API generation from the Worker runtime.
+- Restricted manual uploads and R2 wallpaper keys to validated PNG files up to 12 MiB.
+- Reused matching manual PNG files without daily expiration; missing files now return HTTP 304.
+- Standardized six periods: Sunrise, Morning, Afternoon, Sunset, Night, and Midnight.
+- Changed Cron to read-only R2 coverage checks for Kaohsiung and Taipei; it never generates or writes assets.
+- Stopped persisting the Admin upload token and disabled Android backup.
+- Removed the private-GitHub in-app updater and APK install provider.
+- Removed the Windows Admin plan from the current architecture.
+- Added Worker behavior tests and refreshed all current architecture and operations documentation.
+
 ## 4.36
 
 - Added Typhoon to the admin APK weather selector.
-- Added backend weather normalization for `typhoon` so uploaded/manual wallpapers can use typhoon-specific R2 keys.
-- Added festival detection for Taiwan National Day (`national_day` on 10-10) and Constitution Day (`constitution_day` on 12-25); Western Valentine's Day remains `valentines_day` on 02-14.
+- Added backend weather normalization for `typhoon`.
+- Added Taiwan National Day and Constitution Day festival detection.
 
 ## Server 2026-06-25
 

@@ -1,12 +1,18 @@
-const DEFAULT_IMAGE_MODEL = "gpt-image-1";
-const IMAGE_SIZE = "1024x1536";
 const DEFAULT_STYLE = "knitted";
 const DEFAULT_CHARACTER = "person";
 const DEFAULT_PERIOD = "afternoon";
 const DEFAULT_WEATHER = "cloudy";
 const DEFAULT_CITY = "Kaohsiung";
-const DEFAULT_DAILY_GENERATION_LIMIT = 8;
-const LOCK_TTL_MS = 15 * 60 * 1000;
+const MANUAL_UPLOAD_MAX_BYTES = 12 * 1024 * 1024;
+const MANUAL_UPLOAD_MAX_REQUEST_BYTES = MANUAL_UPLOAD_MAX_BYTES + 256 * 1024;
+const SCHEDULED_CITIES = ["Kaohsiung", "Taipei"];
+const SUPPORTED_STYLES = ["knitted", "colored_pencil"];
+const SUPPORTED_CHARACTERS = ["person", "cat", "dog", "hamster_chinchilla", "parrot"];
+const CANONICAL_WEATHERS = new Set([
+  "sunny", "partly_cloudy", "cloudy", "overcast", "light_rain", "heavy_rain",
+  "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm",
+  "heatwave", "cold_wave"
+]);
 
 const TAIWAN_CITY_ALIASES = {
   taipei: "Taipei",
@@ -39,8 +45,10 @@ const TAIWAN_CITY_ALIASES = {
   "基隆市": "Keelung",
   hsinchu: "Hsinchu",
   "新竹": "Hsinchu",
-  "新竹市": "Hsinchu",
-  "新竹縣": "Hsinchu",
+  hsinchucity: "HsinchuCity",
+  hsinchucounty: "HsinchuCounty",
+  "新竹市": "HsinchuCity",
+  "新竹縣": "HsinchuCounty",
   miaoli: "Miaoli",
   "苗栗": "Miaoli",
   "苗栗縣": "Miaoli",
@@ -55,8 +63,10 @@ const TAIWAN_CITY_ALIASES = {
   "雲林縣": "Yunlin",
   chiayi: "Chiayi",
   "嘉義": "Chiayi",
-  "嘉義市": "Chiayi",
-  "嘉義縣": "Chiayi",
+  chiayicity: "ChiayiCity",
+  chiayicounty: "ChiayiCounty",
+  "嘉義市": "ChiayiCity",
+  "嘉義縣": "ChiayiCounty",
   pingtung: "Pingtung",
   "屏東": "Pingtung",
   "屏東縣": "Pingtung",
@@ -82,29 +92,6 @@ const TAIWAN_CITY_ALIASES = {
   "連江縣": "Lienchiang",
   matzu: "Lienchiang",
   "馬祖": "Lienchiang"
-};
-
-const LANDMARKS = {
-  Kaohsiung: ["85 Sky Tower", "Love River", "Pier-2 Art Center", "Lotus Pond", "Fo Guang Shan Buddha Museum"],
-  Taipei: ["Taipei 101", "Dadaocheng", "Raohe Night Market", "Chiang Kai-shek Memorial Hall", "Ximending"],
-  NewTaipei: ["Tamsui Old Street", "Jiufen", "Yehliu Geopark", "Shifen Waterfall", "Bitan"],
-  Taoyuan: ["Daxi Old Street", "Shimen Reservoir", "Xpark", "Hutoushan Park"],
-  Taichung: ["National Taichung Theater", "Miyahara", "Gaomei Wetlands", "Rainbow Village"],
-  Tainan: ["Chihkan Tower", "Anping Tree House", "Shennong Street", "Tainan Confucius Temple"],
-  Keelung: ["Keelung Harbor", "Miaokou Night Market", "Heping Island Park"],
-  Hsinchu: ["Hsinchu City God Temple", "Hsinchu Zoo", "Eighteen Peaks Mountain"],
-  Miaoli: ["Shengxing Station", "Longteng Bridge", "Nanzhuang Old Street"],
-  Changhua: ["Baguashan Buddha", "Lukang Old Street", "Wangong Fishing Port"],
-  Nantou: ["Sun Moon Lake", "Qingjing Farm", "Xitou Nature Education Area"],
-  Yunlin: ["Beigang Chaotian Temple", "Gukeng Green Tunnel", "Xiluo Bridge"],
-  Chiayi: ["Alishan Forest Railway", "Hinoki Village", "Wenhua Road Night Market"],
-  Pingtung: ["Kenting National Park", "Dapeng Bay", "Donggang Huaqiao Market"],
-  Yilan: ["Lanyang Museum", "Luodong Night Market", "Dongshan River Water Park"],
-  Hualien: ["Taroko Gorge", "Qixingtan", "Dongdamen Night Market"],
-  Taitung: ["Taitung Forest Park", "Sanxiantai", "Tiehua Music Village"],
-  Penghu: ["Penghu Great Bridge", "Twin Hearts Stone Weir", "Qimei"],
-  Kinmen: ["Juguang Tower", "Shuitou Village", "Zhaishan Tunnel"],
-  Lienchiang: ["Qinbi Village", "Beihai Tunnel", "Matsu Blue Tears"]
 };
 
 const STYLE_ALIASES = {
@@ -158,11 +145,12 @@ export default {
       if (url.pathname === "/admin/upload") return adminUploadResponse(request, env);
       if (url.pathname === "/health") return json({ ok: true, service: "weather-wallpaper-server" });
       if (isWeatherRequest(url)) return weatherCompatibilityResponse(url, env);
-      if (isWallpaperRequest(url)) return wallpaperResponse(request, env, ctx);
+      if (isWallpaperRequest(url)) return wallpaperResponse(request, env);
       return json({
         service: "weather-wallpaper-server",
         compatible_params: ["loc", "city", "cityLocal", "weather", "period", "char", "character", "style"],
-        object_key_format: "wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.<ext>"
+        asset_policy: "manual-png-only",
+        object_key_format: "wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.png"
       });
     } catch (error) {
       waitUntilSafe(ctx, sendTelegramAlert(env, {
@@ -175,89 +163,47 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(Promise.resolve().then(() => {
-      console.log(JSON.stringify({
-        level: "info",
-        event: "scheduled_heartbeat",
-        cron: event.cron,
-        scheduledTime: event.scheduledTime
+    ctx.waitUntil(auditScheduledCoverage(event, env).catch((error) => {
+      console.error(JSON.stringify({
+        level: "error",
+        event: "scheduled_wallpaper_coverage_failed",
+        message: error?.message || String(error)
       }));
     }));
   }
 };
 
-async function wallpaperResponse(request, env, ctx) {
+async function wallpaperResponse(request, env) {
   assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
   const url = new URL(request.url);
   const scene = await completeScene(parseClientScene(url), url, env);
+  scene.period = wallpaperPeriod(scene);
   const objectKey = buildWallpaperKey(scene, "png");
   const cached = await env.WALLPAPER_BUCKET.get(objectKey);
 
-  if (cached && isCurrentDailyWallpaper(cached)) {
-    return wallpaperJson(url, scene, objectKey, true);
+  if (cached) return wallpaperJson(url, scene, objectKey, true);
+  if (scene.festival !== "none") {
+    const baseScene = { ...scene, festival: "none" };
+    const baseKey = buildWallpaperKey(baseScene, "png");
+    if (await env.WALLPAPER_BUCKET.get(baseKey)) return wallpaperJson(url, baseScene, baseKey, true);
   }
-
-  const lockKey = `locks/${objectKey}.json`;
-  const lock = await env.WALLPAPER_BUCKET.get(lockKey);
-  if (lock && !isLockExpired(lock.uploaded)) {
-    return notModified("generation_already_pending_keep_current_wallpaper");
-  }
-
-  const dailyCount = await countDailyGenerations(env, scene);
-  const dailyLimit = dailyGenerationLimit(env);
-  if (dailyCount >= dailyLimit) {
-    waitUntilSafe(ctx, sendTelegramAlert(env, {
-      title: "Daily OpenAI generation limit reached",
-      error: new Error(`daily generation limit reached: ${dailyLimit}`),
-      scene
-    }));
-    return notModified("daily_generation_limit_keep_current_wallpaper");
-  }
-
-  try {
-    await env.WALLPAPER_BUCKET.put(lockKey, JSON.stringify({
-      objectKey,
-      scene,
-      createdAt: new Date().toISOString()
-    }), {
-      httpMetadata: { contentType: "application/json; charset=utf-8" }
-    });
-    const bytes = await generateWallpaper(env, scene);
-    await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
-      httpMetadata: { contentType: "image/png" },
-      customMetadata: {
-        style: scene.style,
-        festival: scene.festival,
-        character: scene.character,
-        city: scene.city,
-        period: scene.period,
-        weather: scene.weather,
-        source: "openai-image-api",
-        generatedDate: currentDateKey(),
-        generatedAt: new Date().toISOString()
+  if (scene.style !== "knitted" || scene.character !== "person") {
+    const legacyWeather = {
+      partly_cloudy: "cloudy", overcast: "cloudy", fog: "cloudy", haze: "cloudy",
+      light_rain: "rainy", heavy_rain: "rainy", thunder_shower: "thunder", thunderstorm: "thunder"
+    }[scene.weather];
+    const legacyCity = { HsinchuCity: "Hsinchu", HsinchuCounty: "Hsinchu",
+      ChiayiCity: "Chiayi", ChiayiCounty: "Chiayi" }[scene.city];
+    if (legacyWeather || legacyCity) {
+      for (const festival of new Set([scene.festival, "none"])) {
+        const legacyScene = { ...scene, festival, city: legacyCity || scene.city,
+          weather: legacyWeather || scene.weather };
+        const legacyKey = buildWallpaperKey(legacyScene, "png");
+        if (await env.WALLPAPER_BUCKET.get(legacyKey)) return wallpaperJson(url, legacyScene, legacyKey, true);
       }
-    });
-    return wallpaperJson(url, scene, objectKey, false);
-  } catch (error) {
-    console.log(JSON.stringify({
-      level: "error",
-      event: "wallpaper_generation_failed",
-      message: error?.message || String(error),
-      city: scene.city,
-      period: scene.period,
-      weather: scene.weather,
-      character: scene.character,
-      style: scene.style
-    }));
-    waitUntilSafe(ctx, sendTelegramAlert(env, {
-      title: "OpenAI wallpaper generation failed",
-      error,
-      scene
-    }));
-    return notModified("generation_failed_keep_current_wallpaper");
-  } finally {
-    await env.WALLPAPER_BUCKET.delete(lockKey);
+    }
   }
+  return notModified("manual_wallpaper_missing_keep_current_wallpaper");
 }
 
 async function adminUploadResponse(request, env) {
@@ -272,23 +218,33 @@ async function adminUploadResponse(request, env) {
     return json({ error: "Expected multipart/form-data upload" }, 400);
   }
 
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (Number.isFinite(contentLength) && contentLength > MANUAL_UPLOAD_MAX_REQUEST_BYTES) {
+    return json({ error: "PNG upload exceeds the 12 MiB limit" }, 413);
+  }
+
   const form = await request.formData();
   const providedToken = String(form.get("token") || "");
-  if (!timingSafeEqual(providedToken, expectedToken)) return json({ error: "Unauthorized" }, 401);
+  if (!await timingSafeEqual(providedToken, expectedToken)) return json({ error: "Unauthorized" }, 401);
 
   const image = form.get("image");
   if (!image || typeof image.arrayBuffer !== "function") {
     return json({ error: "Missing image file" }, 400);
   }
 
+  if (String(image.type || "").toLowerCase() !== "image/png") {
+    return json({ error: "Only image/png uploads are accepted" }, 415);
+  }
+  if (!Number.isFinite(image.size) || image.size <= 0) return json({ error: "PNG file is empty" }, 400);
+  if (image.size > MANUAL_UPLOAD_MAX_BYTES) return json({ error: "PNG upload exceeds the 12 MiB limit" }, 413);
+
   const scene = parseAdminScene(form);
-  const contentType = sanitizeContentType(image.type || "image/png");
-  const extension = extensionForContentType(contentType);
-  const objectKey = buildWallpaperKey(scene, extension);
+  const objectKey = buildWallpaperKey(scene, "png");
   const bytes = await image.arrayBuffer();
+  if (!hasPngSignature(bytes)) return json({ error: "Uploaded file is not a valid PNG" }, 415);
 
   await env.WALLPAPER_BUCKET.put(objectKey, bytes, {
-    httpMetadata: { contentType },
+    httpMetadata: { contentType: "image/png" },
     customMetadata: {
       style: scene.style,
       festival: scene.festival,
@@ -297,12 +253,12 @@ async function adminUploadResponse(request, env) {
       period: scene.period,
       weather: scene.weather,
       source: "manual-chatgpt-upload",
-      generatedDate: currentDateKey(),
-      generatedAt: new Date().toISOString()
+      uploadedDate: currentDateKey(),
+      uploadedAt: new Date().toISOString()
     }
   });
 
-  return wallpaperJson(new URL(request.url), scene, objectKey, false, contentType, "manual_uploaded");
+  return wallpaperJson(new URL(request.url), scene, objectKey, false, "manual_uploaded");
 }
 
 function parseClientScene(url) {
@@ -346,21 +302,37 @@ async function fetchServerWeather(scene, url, env) {
       console.log(JSON.stringify({ level: "warn", event: "server_weather_failed", city: scene.city, status: response.status }));
       return "";
     }
-    return normalizeWeather(body?.weather?.[0]?.main || body?.weather?.[0]?.description || "");
+    const condition = body?.weather?.[0];
+    if (!condition) return "";
+    const id = Number(condition.id);
+    if (id === 800) return "sunny";
+    if (id === 801 || id === 802) return "partly_cloudy";
+    if (id === 803) return "cloudy";
+    if (id === 804) return "overcast";
+    if (id >= 200 && id <= 299) return [200, 201, 202, 230, 231, 232].includes(id)
+      ? "thunder_shower" : "thunderstorm";
+    if ([502, 503, 504, 522, 531].includes(id)) return "heavy_rain";
+    if (id >= 300 && id <= 599) return "light_rain";
+    if (id === 701 || id === 741) return "fog";
+    if ([711, 721, 731, 751, 761, 762].includes(id)) return "haze";
+    if (id === 771) return "strong_wind";
+    if (id === 781) return "typhoon";
+    return normalizeWeather(condition.description || condition.main || "");
   } catch (error) {
     console.log(JSON.stringify({ level: "warn", event: "server_weather_exception", city: scene.city, message: error?.message || String(error) }));
     return "";
   }
 }
 
-function currentServerPeriod() {
+function currentServerPeriod(date = new Date()) {
   const hour = Number(new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Taipei",
     hour: "2-digit",
     hour12: false
-  }).format(new Date()));
-  if (hour >= 4 && hour <= 6) return "morning";
-  if (hour >= 7 && hour <= 15) return "afternoon";
+  }).format(date));
+  if (hour >= 4 && hour <= 6) return "sunrise";
+  if (hour >= 7 && hour <= 10) return "morning";
+  if (hour >= 11 && hour <= 15) return "afternoon";
   if (hour >= 16 && hour <= 18) return "sunset";
   if (hour >= 19 && hour <= 22) return "night";
   return "midnight";
@@ -371,27 +343,50 @@ function buildWallpaperKey(scene, extension = "png") {
     scene.festival,
     scene.city,
     scene.character,
-    scene.period,
+    wallpaperPeriod(scene),
     scene.weather
   ].map(filenamePart).join("_");
   return `wallpaper/${filenamePart(scene.style)}/${filenamePart(scene.character)}/${fileName}.${filenamePart(extension)}`;
 }
 
-async function countDailyGenerations(env, scene) {
-  const prefix = `wallpaper/${filenamePart(scene.style)}/${filenamePart(scene.character)}/`;
-  const listed = await env.WALLPAPER_BUCKET.list({ prefix, limit: 1000 });
-  const today = currentDateKey();
-  return (listed.objects || []).filter((object) => {
-    const metadata = object.customMetadata || {};
-    return metadata.source === "openai-image-api"
-      && metadata.generatedDate === today
-      && metadata.city === scene.city;
-  }).length;
+function wallpaperPeriod(scene) {
+  // The knitted-person collection has time variants only for sun-visible weather.
+  return scene.style === "knitted" && scene.character === "person"
+    && !["sunny", "partly_cloudy"].includes(scene.weather) ? "all_day" : scene.period;
 }
 
-function isCurrentDailyWallpaper(object) {
-  const metadata = object?.customMetadata || {};
-  return metadata.generatedDate === currentDateKey();
+async function auditScheduledCoverage(event, env) {
+  assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
+  const scheduledAt = new Date(event.scheduledTime || Date.now());
+  const period = currentServerPeriod(scheduledAt);
+  const festival = detectFestival(scheduledAt);
+  const missing = [];
+  let available = 0;
+
+  for (const city of SCHEDULED_CITIES) {
+    const weatherUrl = new URL(`https://scheduled.invalid/?city=${encodeURIComponent(city)}`);
+    const weather = await fetchServerWeather({ city }, weatherUrl, env) || DEFAULT_WEATHER;
+    for (const style of SUPPORTED_STYLES) {
+      for (const character of SUPPORTED_CHARACTERS) {
+        const scene = { city, weather, period, character, style, festival };
+        const objectKey = buildWallpaperKey(scene, "png");
+        const object = await env.WALLPAPER_BUCKET.head(objectKey);
+        if (object) available += 1;
+        else missing.push(objectKey);
+      }
+    }
+  }
+
+  console.log(JSON.stringify({
+    level: missing.length ? "warn" : "info",
+    event: "scheduled_wallpaper_coverage",
+    cron: event.cron,
+    scheduledTime: event.scheduledTime,
+    period,
+    available,
+    missingCount: missing.length,
+    missing
+  }));
 }
 
 function currentDateKey() {
@@ -405,81 +400,15 @@ function currentDateKey() {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function dailyGenerationLimit(env) {
-  const value = Number(env.MAX_DAILY_GENERATIONS_PER_CITY || DEFAULT_DAILY_GENERATION_LIMIT);
-  if (!Number.isFinite(value)) return DEFAULT_DAILY_GENERATION_LIMIT;
-  return Math.max(1, Math.min(50, Math.floor(value)));
-}
-
-function isLockExpired(uploaded) {
-  if (!uploaded) return false;
-  return Date.now() - new Date(uploaded).getTime() > LOCK_TTL_MS;
-}
-
-async function generateWallpaper(env, scene) {
-  if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
-  const prompt = buildPrompt(scene);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 100000);
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    signal: controller.signal,
-    headers: {
-      authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({
-      model: env.OPENAI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL,
-      prompt,
-      size: IMAGE_SIZE,
-      n: 1
-    })
-  }).finally(() => clearTimeout(timeout));
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = body?.error?.message || `OpenAI HTTP ${response.status}`;
-    throw new Error(message);
-  }
-  const b64 = body?.data?.[0]?.b64_json;
-  if (!b64) throw new Error("OpenAI response did not include b64_json");
-  return Uint8Array.from(atob(b64), (char) => char.charCodeAt(0));
-}
-
-function buildPrompt(scene) {
-  const landmarks = LANDMARKS[scene.city] || LANDMARKS[DEFAULT_CITY];
-  const stylePrompt = scene.style === "colored_pencil"
-    ? "colored pencil illustration, soft paper grain, visible hand-drawn strokes, warm fairy-tale atmosphere, delicate shading"
-    : "premium handmade knitted crochet amigurumi style, yarn texture, plush miniature buildings, crochet clouds, stitched details, cozy handcrafted lighting";
-  const characterPrompt = {
-    person: "Q-version cute people doing ordinary daily life actions such as walking, shopping, chatting, holding drinks, taking photos, and riding a tiny scooter",
-    cat: "Q-version cute cats of different breeds doing daily life actions, walking, shopping, chatting, relaxing, and exploring the city",
-    dog: "Q-version cute dogs doing daily life actions, walking with bags, playing, greeting friends, and exploring the city",
-    hamster_chinchilla: "Q-version hamsters and chinchillas with round bodies doing daily life actions, carrying tiny bags and enjoying the city",
-    parrot: "Q-version parrots with bright feathers doing daily life actions, perching, flying gently, shopping, and interacting with the city"
-  }[scene.character] || "Q-version cute people doing daily life actions";
-
-  return [
-    "Create a vertical 9:16 high-resolution phone live wallpaper background.",
-    `Visual style: ${stylePrompt}.`,
-    `Scene: ${scene.city}, Taiwan, city-level only. Do not show districts, streets, or townships as the main identity.`,
-    `Weather mood: ${scene.weather}. Time period: ${scene.period}. Festival: ${scene.festival}.`,
-    `Use 2 to 4 recognizable local landmarks naturally in the distance: ${landmarks.slice(0, 4).join(", ")}.`,
-    characterPrompt + ".",
-    "Add subtle motion cues suitable for a live wallpaper: drifting clouds, soft light shimmer, rain streaks or lightning glow when weather requires it, walking poses, moving boats or scooters, fluttering fabric, and lively daily activity.",
-    "Keep composition calm, premium, cute, and not crowded. Leave the top area clean enough for phone status and clock widgets.",
-    "Avoid city-name title text, large labels, phone UI, clock, date, battery, signal icons, app labels, logos, and watermarks."
-  ].join("\n");
-}
-
-function wallpaperJson(url, scene, objectKey, reused, contentType = "image/png", cache = null) {
+function wallpaperJson(url, scene, objectKey, reused, cache = null) {
   return json({
     file_name: objectKey.split("/").pop(),
     object_key: objectKey,
     image_url: fileUrl(url, objectKey),
-    content_type: contentType,
-    asset_kind: "generated_image",
+    content_type: "image/png",
+    asset_kind: "manual_png",
     reused,
-    cache: cache || (reused ? "hit" : "miss_generated"),
+    cache: cache || "hit",
     city: scene.city,
     weather: scene.weather,
     period: scene.period,
@@ -487,9 +416,9 @@ function wallpaperJson(url, scene, objectKey, reused, contentType = "image/png",
     style: scene.style,
     festival: scene.festival,
     animation: {
-      type: "server-wallpaper-file",
-      format: "mp4-key-compatible-image-payload",
-      payload_content_type: "image/png"
+      type: "android-live-wallpaper-overlay",
+      source_format: "png",
+      note: "The Android WallpaperService animates weather overlays above this PNG background."
     }
   });
 }
@@ -599,10 +528,12 @@ function normalizeCity(value) {
 }
 
 function normalizeWeather(value) {
-  const clean = String(value || DEFAULT_WEATHER).trim().toLowerCase();
-  if (/(typhoon|hurricane|cyclone|tropical\s*storm|tornado|\u98b1\u98a8|\u53f0\u98ce)/i.test(clean)) return "typhoon";
-  if (/(thunder|storm|雷|閃電|闪电|hail|冰雹)/i.test(clean)) return "thunder";
-  if (/(rain|drizzle|shower|雨|陣雨|阵雨|豪雨|暴雨|snow|雪|sleet|凍雨|冻雨)/i.test(clean)) return "rainy";
+  const clean = String(value || DEFAULT_WEATHER).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (CANONICAL_WEATHERS.has(clean)) return clean;
+  if (/(torrential|heavy|豪|暴|大雨)/i.test(clean) && /rain|雨/i.test(clean)) return "heavy_rain";
+  if (/(typhoon|hurricane|cyclone|tropical[_\s]*storm|tornado|颱風|台风)/i.test(clean)) return "typhoon";
+  if (/(thunder|storm|雷|閃電|闪电|hail|冰雹)/i.test(clean)) return "thunderstorm";
+  if (/(rain|drizzle|shower|雨|陣雨|阵雨|snow|雪|sleet|凍雨|冻雨)/i.test(clean)) return "light_rain";
   if (/(clear|sun|晴)/i.test(clean)) return "sunny";
   if (/(cloud|overcast|mist|fog|haze|smoke|dust|sand|陰|阴|雲|云|霧|雾|霾|沙|塵|尘)/i.test(clean)) return "cloudy";
   return DEFAULT_WEATHER;
@@ -610,7 +541,9 @@ function normalizeWeather(value) {
 
 function normalizePeriod(value) {
   const clean = String(value || DEFAULT_PERIOD).trim().toLowerCase();
-  if (/sunrise|sunraise|dawn|morning|早|晨/.test(clean)) return "morning";
+  if (/^all[ _-]?day$/.test(clean)) return "all_day";
+  if (/sunrise|sunraise|dawn|日出/.test(clean)) return "sunrise";
+  if (/morning|早上|上午|晨/.test(clean)) return "morning";
   if (/noon|afternoon|中午|下午/.test(clean)) return "afternoon";
   if (/sunset|dusk|evening|傍晚|黃昏|黄昏/.test(clean)) return "sunset";
   if (/midnight|late|深夜|午夜/.test(clean)) return "midnight";
@@ -629,7 +562,13 @@ function normalizeStyle(value) {
 }
 
 function detectFestival(date) {
-  const md = `${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Taipei",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const md = `${values.month}-${values.day}`;
   const festivals = {
     "01-01": "new_year",
     "02-14": "valentines_day",
@@ -671,7 +610,7 @@ function safeSceneFromUrl(url) {
 function parseAdminScene(form) {
   const date = new Date(String(form.get("date") || ""));
   const festivalDate = Number.isNaN(date.getTime()) ? new Date() : date;
-  return {
+  const scene = {
     city: normalizeCity(form.get("city") || form.get("cityLocal") || form.get("loc") || DEFAULT_CITY),
     weather: normalizeWeather(form.get("weather") || DEFAULT_WEATHER),
     period: normalizePeriod(form.get("period") || DEFAULT_PERIOD),
@@ -679,6 +618,8 @@ function parseAdminScene(form) {
     style: normalizeStyle(form.get("style") || DEFAULT_STYLE),
     festival: normalizeFestival(form.get("festival")) || detectFestival(festivalDate)
   };
+  scene.period = wallpaperPeriod(scene);
+  return scene;
 }
 
 function normalizeFestival(value) {
@@ -705,27 +646,23 @@ function filenamePart(value) {
     .slice(0, 80) || "unknown";
 }
 
-function sanitizeContentType(value) {
-  const clean = String(value || "image/png").toLowerCase();
-  if (clean.includes("jpeg")) return "image/jpeg";
-  if (clean.includes("jpg")) return "image/jpeg";
-  if (clean.includes("webp")) return "image/webp";
-  if (clean.includes("mp4")) return "video/mp4";
-  return "image/png";
+function hasPngSignature(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  return bytes.length >= signature.length && signature.every((value, index) => bytes[index] === value);
 }
 
-function extensionForContentType(contentType) {
-  if (contentType === "image/jpeg") return "jpg";
-  if (contentType === "image/webp") return "webp";
-  if (contentType === "video/mp4") return "mp4";
-  return "png";
-}
-
-function timingSafeEqual(left, right) {
-  if (left.length !== right.length) return false;
+async function timingSafeEqual(left, right) {
+  const encoder = new TextEncoder();
+  const [leftHash, rightHash] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(left)),
+    crypto.subtle.digest("SHA-256", encoder.encode(right))
+  ]);
+  const leftBytes = new Uint8Array(leftHash);
+  const rightBytes = new Uint8Array(rightHash);
   let result = 0;
-  for (let i = 0; i < left.length; i += 1) {
-    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  for (let i = 0; i < leftBytes.length; i += 1) {
+    result |= leftBytes[i] ^ rightBytes[i];
   }
   return result === 0;
 }

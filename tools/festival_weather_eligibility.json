@@ -1,0 +1,448 @@
+{
+  "schema_version": 1,
+  "policy": {
+    "ordinary_all_day": ["cloudy", "overcast", "light_rain"],
+    "adverse_requires_historical_evidence": [
+      "heavy_rain",
+      "typhoon",
+      "fog",
+      "haze",
+      "strong_wind",
+      "thunder_shower",
+      "thunderstorm",
+      "heatwave",
+      "cold_wave"
+    ],
+    "evidence_period": "1940-01-01 through 2025-12-31",
+    "qualification_rule": "Only CWA station observations and CWA typhoon records qualify an adverse weather type. Screening data alone never qualifies generation.",
+    "thresholds": {
+      "heavy_rain": "daily precipitation >= 80 mm",
+      "strong_wind": "daily maximum gust >= 62 km/h (Beaufort force 8)",
+      "thunderstorm": "WMO weather code 95-99",
+      "thunder_shower": "same-day thunderstorm evidence",
+      "heatwave": "daily maximum temperature >= 36 C",
+      "cold_wave": "daily minimum temperature <= 10 C",
+      "typhoon": "CWA typhoon warning active on the calendar date with local adverse observation evidence",
+      "fog": "requires local visibility evidence; absent until verified",
+      "haze": "requires local visibility/air-quality evidence; absent until verified"
+    }
+  },
+  "sources": [
+    {
+      "name": "CWA CODiS climate observation service",
+      "url": "https://codis.cwa.gov.tw/StationData?target=weather1",
+      "use": "authoritative station-observation reference and field definitions"
+    },
+    {
+      "name": "CWA Typhoon Database",
+      "url": "https://rdc28.cwa.gov.tw/TDB/public/advanced_query/",
+      "use": "authoritative typhoon warning dates and Taiwan impact descriptions"
+    },
+    {
+      "name": "Open-Meteo Historical Weather API",
+      "url": "https://archive-api.open-meteo.com/v1/archive",
+      "use": "screening only; not accepted as final evidence for generation eligibility"
+    }
+  ],
+  "cities": {
+    "Taipei": {
+      "coordinate": {"latitude": 25.0375, "longitude": 121.5637},
+      "festivals": {
+        "new_year": {
+          "month_day": "01-01",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              "CWA CODiS station 466920, 2005-01-01: hourly Tmin 7.7 C",
+              "CWA CODiS station 466920, 2011-01-01: hourly Tmin 9.9 C"
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"]
+        },
+        "valentines_day": {
+          "month_day": "02-14",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": ["CWA CODiS station 466920, 1958-02-14: hourly Tmin 3.1 C"]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"]
+        },
+        "national_day": {
+          "month_day": "10-10",
+          "eligible_adverse": ["heavy_rain", "typhoon", "strong_wind"],
+          "evidence": {
+            "heavy_rain": ["CWA CODiS station 466921, 1994-10-10: hourly precipitation sum 118.0 mm"],
+            "strong_wind": ["CWA Typhoon Database, 1994 Typhoon Seth: northern Taiwan had strong wind while the land warning remained active on 1994-10-10"],
+            "typhoon": ["CWA Typhoon Database, 1994 Typhoon Seth: land warning active through 1994-10-10 20:40; northern Taiwan had strong wind and heavy rain"]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=199427"
+          ]
+        },
+        "halloween": {
+          "month_day": "10-31",
+          "eligible_adverse": ["heavy_rain", "typhoon", "strong_wind"],
+          "evidence": {
+            "heavy_rain": [
+              "CWA CODiS station 466920, 2000-10-31: hourly precipitation sum 108.2 mm",
+              "CWA CODiS station 466920, 2024-10-31: hourly precipitation sum 258.0 mm"
+            ],
+            "strong_wind": ["CWA CODiS station 466920, 2024-10-31: maximum gust 29.4 m/s (105.8 km/h)"],
+            "typhoon": ["CWA Typhoon Database, 2024 Typhoon Kong-rey: land warning active on 2024-10-31 and the center crossed Taiwan"]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=202421"
+          ]
+        },
+        "constitution_day": {
+          "month_day": "12-25",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              "CWA CODiS station 466920, 1973-12-25: hourly Tmin 8.4 C",
+              "CWA CODiS station 466920, 2022-12-25: hourly Tmin 8.7 C"
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"],
+          "excluded_after_verification": {
+            "strong_wind": "CWA CODiS station 466920, 2000-12-25 maximum gust was 17.1 m/s (61.6 km/h), below the 62 km/h threshold; no qualifying Dec 25 gust was found for 1998-2025."
+          }
+        }
+      }
+    },
+    "NewTaipei": {
+      "coordinate": {"latitude": 24.997647, "longitude": 121.442017},
+      "stations": [
+        {
+          "station_id": "466880",
+          "name": "板橋",
+          "city": "新北市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        },
+        {
+          "station_id": "466900",
+          "name": "淡水",
+          "city": "新北市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        },
+        {
+          "station_id": "C0A570",
+          "name": "桶後",
+          "city": "新北市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        }
+      ],
+      "festivals": {
+        "new_year": {
+          "month_day": "01-01",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2005-01-01",
+                "station_id": "466880",
+                "station_name": "板橋",
+                "measurement": "daily minimum air temperature 6.3 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"]
+        },
+        "valentines_day": {
+          "month_day": "02-14",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2011-02-14",
+                "station_id": "466880",
+                "station_name": "板橋",
+                "measurement": "daily minimum air temperature 9.1 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"]
+        },
+        "national_day": {
+          "month_day": "10-10",
+          "eligible_adverse": ["heavy_rain", "typhoon", "strong_wind"],
+          "evidence": {
+            "heavy_rain": [
+              {
+                "date": "1994-10-10",
+                "station_id": "C0A570",
+                "station_name": "桶後",
+                "measurement": "daily precipitation 211.5 mm",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "strong_wind": [
+              {
+                "date": "1994-10-10",
+                "station_id": "466900",
+                "station_name": "淡水",
+                "measurement": "daily maximum gust 30.9 m/s (111.2 km/h)",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "typhoon": [
+              {
+                "date": "1994-10-10",
+                "official_event": "CWA Typhoon Database: Typhoon Seth (199427), land warning active until 20:40; northern and northeastern Taiwan had strong wind and heavy rain",
+                "source_url": "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=199427"
+              }
+            ]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=199427"
+          ]
+        },
+        "halloween": {
+          "month_day": "10-31",
+          "eligible_adverse": ["heavy_rain", "typhoon", "strong_wind"],
+          "evidence": {
+            "heavy_rain": [
+              {
+                "date": "2024-10-31",
+                "station_id": "466900",
+                "station_name": "淡水",
+                "measurement": "daily precipitation 119.0 mm",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "strong_wind": [
+              {
+                "date": "2024-10-31",
+                "station_id": "466900",
+                "station_name": "淡水",
+                "measurement": "daily maximum gust 36.4 m/s (131.0 km/h)",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "typhoon": [
+              {
+                "date": "2024-10-31",
+                "official_event": "CWA Typhoon Database: Typhoon Kong-rey (202421), land warning active and center crossed Taiwan on 2024-10-31",
+                "source_url": "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=202421"
+              }
+            ]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=202421"
+          ]
+        },
+        "constitution_day": {
+          "month_day": "12-25",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2022-12-25",
+                "station_id": "466900",
+                "station_name": "淡水",
+                "measurement": "daily minimum air temperature 7.3 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"]
+        }
+      }
+    },
+    "Taoyuan": {
+      "coordinate": {"latitude": 24.992425, "longitude": 121.323172},
+      "stations": [
+        {
+          "station_id": "C0C480",
+          "name": "桃園",
+          "city": "桃園市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        },
+        {
+          "station_id": "467050",
+          "name": "新屋",
+          "city": "桃園市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        },
+        {
+          "station_id": "C1C500",
+          "name": "楊梅",
+          "city": "桃園市",
+          "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+        }
+      ],
+      "festivals": {
+        "new_year": {
+          "month_day": "01-01",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2011-01-01",
+                "station_id": "C0C480",
+                "station_name": "桃園",
+                "measurement": "hourly minimum air temperature 8.8 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"],
+          "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave"]
+        },
+        "valentines_day": {
+          "month_day": "02-14",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2011-02-14",
+                "station_id": "C0C480",
+                "station_name": "桃園",
+                "measurement": "hourly minimum air temperature 8.1 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"],
+          "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave"]
+        },
+        "national_day": {
+          "month_day": "10-10",
+          "eligible_adverse": ["typhoon"],
+          "evidence": {
+            "typhoon": [
+              {
+                "date": "1994-10-10",
+                "official_event": "CWA Typhoon Database: Typhoon Seth (199427), land warning active through 20:40; northern Taiwan had strong wind and heavy rain",
+                "source_url": "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=199427"
+              },
+              {
+                "date": "1994-10-10",
+                "station_id": "C1C500",
+                "station_name": "楊梅",
+                "measurement": "hourly precipitation accumulation sum 60.5 mm",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=199427"
+          ],
+          "excluded_adverse": ["heavy_rain", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]
+        },
+        "halloween": {
+          "month_day": "10-31",
+          "eligible_adverse": ["heavy_rain", "typhoon", "strong_wind"],
+          "evidence": {
+            "heavy_rain": [
+              {
+                "date": "2024-10-31",
+                "station_id": "C0C480",
+                "station_name": "桃園",
+                "measurement": "hourly precipitation accumulation sum 176.5 mm",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "strong_wind": [
+              {
+                "date": "2024-10-31",
+                "station_id": "467050",
+                "station_name": "新屋",
+                "measurement": "maximum gust 33.2 m/s (119.5 km/h)",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ],
+            "typhoon": [
+              {
+                "date": "2024-10-31",
+                "official_event": "CWA Typhoon Database: Typhoon Kong-rey (202421), land warning active and center crossed Taiwan on 2024-10-31",
+                "source_url": "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=202421"
+              },
+              {
+                "date": "2024-10-31",
+                "station_id": "C0C480",
+                "station_name": "桃園",
+                "measurement": "hourly precipitation accumulation sum 176.5 mm during the official typhoon event",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": [
+            "https://codis.cwa.gov.tw/StationData?target=weather1",
+            "https://rdc28.cwa.gov.tw/TDB/public/typhoon_detail?typhoon_id=202421"
+          ],
+          "excluded_adverse": ["fog", "haze", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]
+        },
+        "constitution_day": {
+          "month_day": "12-25",
+          "eligible_adverse": ["cold_wave"],
+          "evidence": {
+            "cold_wave": [
+              {
+                "date": "2022-12-25",
+                "station_id": "C0C480",
+                "station_name": "桃園",
+                "measurement": "hourly minimum air temperature 8.2 C",
+                "source_url": "https://codis.cwa.gov.tw/StationData?target=weather1"
+              }
+            ]
+          },
+          "references": ["https://codis.cwa.gov.tw/StationData?target=weather1"],
+          "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave"]
+        }
+      }
+    },
+    "Taichung": {
+      "festivals": {
+        "new_year": {"month_day": "01-01", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "valentines_day": {"month_day": "02-14", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "national_day": {"month_day": "10-10", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "halloween": {"month_day": "10-31", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "constitution_day": {"month_day": "12-25", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]}
+      }
+    },
+    "Tainan": {
+      "festivals": {
+        "new_year": {"month_day": "01-01", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "valentines_day": {"month_day": "02-14", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "national_day": {"month_day": "10-10", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "halloween": {"month_day": "10-31", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "constitution_day": {"month_day": "12-25", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]}
+      }
+    },
+    "Kaohsiung": {
+      "festivals": {
+        "new_year": {"month_day": "01-01", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "valentines_day": {"month_day": "02-14", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "national_day": {"month_day": "10-10", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "halloween": {"month_day": "10-31", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "constitution_day": {"month_day": "12-25", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]}
+      }
+    },
+    "Keelung": {
+      "festivals": {
+        "new_year": {"month_day": "01-01", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "valentines_day": {"month_day": "02-14", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "national_day": {"month_day": "10-10", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "halloween": {"month_day": "10-31", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "constitution_day": {"month_day": "12-25", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]}
+      }
+    },
+    "HsinchuCity": {
+      "festivals": {
+        "new_year": {"month_day": "01-01", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "valentines_day": {"month_day": "02-14", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "national_day": {"month_day": "10-10", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "halloween": {"month_day": "10-31", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]},
+        "constitution_day": {"month_day": "12-25", "eligible_adverse": [], "evidence": {}, "excluded_adverse": ["heavy_rain", "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm", "heatwave", "cold_wave"]}
+      }
+    }
+  }
+}

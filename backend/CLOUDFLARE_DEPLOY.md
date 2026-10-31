@@ -1,33 +1,30 @@
-# Cloudflare Worker 部署與維運 Runbook
+# Cloudflare Worker 部署與維運
 
-本專案後端使用 Cloudflare Worker + R2，Worker 程式入口：
+## 架構
 
-`backend/amigurumi-theme-server-worker.js`
+- Worker：`amigurumi-weather-theme-server`
+- R2 binding：`WALLPAPER_BUCKET`
+- R2 bucket：`amigurumi-weather-wallpapers`
+- 素材政策：手動上傳 PNG，不進行任何 AI 自動產圖
+- PNG 上限：12 MiB
 
-## 目前線上架構
+R2 key：
 
-- Worker name: `amigurumi-weather-theme-server`
-- R2 bucket: `amigurumi-weather-wallpapers`
-- R2 binding: `WALLPAPER_BUCKET`
-- R2 object key:
-  `wallpaper/<style>/<char>/<festival>_<city>_<char>_<period>_<weather>.<ext>`
-  Admin manual uploads preserve the uploaded extension/content type. Server-generated OpenAI Image payloads use `.png`.
-- 注意：目前 key 保留 `.mp4` 相容命名，但 payload 是 OpenAI Image API 產生的 PNG image。API response 會回：
-  - `content_type: image/png`
-  - `asset_kind: generated_image`
-  - `animation.payload_content_type: image/png`
+```text
+wallpaper/<style>/<character>/<festival>_<city>_<character>_<period>_<weather>.png
+```
 
-## Worker Secrets
-
-所有敏感值都必須用 Cloudflare Worker secrets，不可寫在原始碼或文件中。
+## Secrets
 
 必要：
 
 ```powershell
-npx.cmd wrangler secret put OPENAI_API_KEY
+npx.cmd wrangler secret put MANUAL_UPLOAD_TOKEN
 ```
 
-選用，但建議設定：
+舊環境可暫時使用 `ADMIN_UPLOAD_TOKEN`，完成遷移後應刪除舊 secret。開發完成時撤銷手動上傳 token。
+
+選用：
 
 ```powershell
 npx.cmd wrangler secret put OPENWEATHER_API_KEY
@@ -35,97 +32,76 @@ npx.cmd wrangler secret put TELEGRAM_BOT_TOKEN
 npx.cmd wrangler secret put TELEGRAM_CHAT_ID
 ```
 
-用途：
-
-- `OPENAI_API_KEY`: R2 cache miss 時呼叫 OpenAI Image API。
-- `OPENWEATHER_API_KEY`: 舊版手機端 `lat/lon` 天氣查詢相容路由使用。
-- `TELEGRAM_BOT_TOKEN`: OpenAI 失敗、每日生成上限等事件告警。
-- `TELEGRAM_CHAT_ID`: Telegram 告警接收對象。
-
-非敏感 vars 由 `wrangler.toml` 設定：
-
-- `OPENAI_IMAGE_MODEL`
-- `MAX_DAILY_GENERATIONS_PER_CITY`
-- `PUBLIC_WORKER_ORIGIN`
+Worker 不再讀取 `OPENAI_API_KEY`。確認部署穩定後，可在 Cloudflare 端刪除舊 `OPENAI_API_KEY` secret。
 
 ## 部署
 
-確認登入：
-
 ```powershell
-npm.cmd run cf:whoami
-```
-
-建立 R2 bucket：
-
-```powershell
-npm.cmd run cf:create-bucket
-```
-
-部署 Worker：
-
-```powershell
+npm.cmd test
+npm.cmd run cf:check
+npm.cmd run cf:dry-run
 npm.cmd run cf:deploy
 ```
 
-部署後查看即時 log：
+本專案沒有 staging environment。正式部署前至少必須通過測試與 dry run。
 
-```powershell
-npm.cmd run cf:tail
-```
+## Admin Upload
 
-## Smoke Test
+Endpoint：`POST /admin/upload`
 
-健康檢查：
+必要 multipart 欄位：
 
-```powershell
-Invoke-WebRequest -Uri "https://amigurumi-weather-theme-server.wemmei0130.workers.dev/health" -UseBasicParsing
-```
+- `token`
+- `city`
+- `weather`
+- `period`
+- `character`
+- `style`
+- `image`
 
-不觸發 OpenAI 的 cache hit 測試需要 R2 已有對應 object。一般查詢範例：
+`image` 必須同時符合：
 
-```text
-https://amigurumi-weather-theme-server.wemmei0130.workers.dev/?loc=高雄市&weather=Thunderstorm&period=Night&char=cat&style=針織
-```
+- MIME type 為 `image/png`
+- PNG signature 正確
+- 大小不超過 12 MiB
 
-如果 R2 miss 且 OpenAI 失敗或達每日上限，Worker 會回 `HTTP 304`，手機端應保留最後一張桌布。
+Worker 決定最終 object key。客戶端不得提供或覆寫 R2 path。
 
-## SRE 防線
+## 查詢行為
 
-- R2 exact key cache hit: 不呼叫 OpenAI，費用為 0。
-- R2 lock: 同一張圖正在生成時，其他請求回 304，避免並發重複生成。
-- Daily limit: 同 city/style 每日生成量受 `MAX_DAILY_GENERATIONS_PER_CITY` 限制。
-- OpenAI timeout: 55 秒。
-- Telegram timeout: 10 秒。
-- Telegram alert 使用 `ctx.waitUntil()`，且有 catch 防止背景 promise 失控。
-- `/files/...` 只允許讀取 `wallpaper/` prefix。
+桌布查詢只執行 exact-key R2 lookup：
 
-## Cron 狀態
+- 命中：回傳 PNG URL。
+- 缺圖：回 `HTTP 304`，header `x-wallpaper-status=manual_wallpaper_missing_keep_current_wallpaper`。
+- 不會呼叫 OpenAI、Workers AI 或其他產圖 API。
 
-`wrangler.toml` 目前保留 cron：
+## 六時段 Cron
 
 ```toml
 crons = ["0 4,9,11,16,21,23 * * *"]
 ```
 
-目前 `scheduled()` handler 只寫入 heartbeat log，不會自動呼叫 OpenAI 生成圖片，以避免排程造成非預期費用。未來若要做預生成，需先設計城市/時段/每日上限與告警策略。
+排程依 Asia/Taipei 的六時段執行覆蓋率檢查。它使用 R2 `head()` 檢查高雄與台北、2 種畫風、5 種角色，共 20 個目前天氣／時段 PNG key；存在就跳過，缺少就記錄 `scheduled_wallpaper_coverage` 結構化 log。排程不寫入 R2，也不產圖。
+
+若未設定 `OPENWEATHER_API_KEY`，排程以 `cloudy` 作為檢查天氣。
+
+## Smoke Test
+
+```powershell
+Invoke-WebRequest -Uri "https://amigurumi-weather-theme-server.wemmei0130.workers.dev/health" -UseBasicParsing
+```
+
+預期：
+
+```json
+{"ok":true,"service":"weather-wallpaper-server"}
+```
 
 ## 回滾
 
-列出版本：
-
 ```powershell
 npx.cmd wrangler versions list
+npx.cmd wrangler rollback <VERSION_ID>
 ```
 
-回滾請在 Cloudflare Dashboard 或 Wrangler 版本管理中選擇前一個穩定版本。回滾前先確認該版本對應的 R2 key 格式與手機端版本相容。
-
-## Admin Upload 狀態
-
-新版 Worker 已清空舊 `/admin/upload` 架構，目前沒有提供 manual upload endpoint。Android admin APK 中若仍使用 `/admin/upload`，會需要後續重新接上新版安全上傳流程。
-
-安全原則：
-
-- admin APK 不上傳 public GitHub release。
-- token-bearing admin APK 僅本機保存或私有渠道。
-- public APK 與 admin APK 分開輸出。
+回滾版本若仍包含 OpenAI 產圖程式，即不符合目前的永久停用決策，不應作為長期版本。

@@ -1,0 +1,53 @@
+{
+  "trigger_time_utc": "2026-10-21T02:14:24.239Z",
+  "status": "awaiting_requested_model",
+  "required_model": "gpt-5.6-luna",
+  "required_reasoning_effort": "low",
+  "current_turn_model_family": "GPT-6",
+  "formal_root": "D:\\projects\\weather_wallpaper\\pic\\knitted\\person",
+  "producer_thread": "01a157e6-8976-7522-9fc8-070474d364f6",
+  "verified_workflow_status": {
+    "checkpoint_status": "in_progress",
+    "accepted_count": 8,
+    "target_count": 25,
+    "active_attempts": {
+      "KAOH-PARTLY-AFTERNOON-20261021-01": {
+        "target": "none_Kaohsiung_person_afternoon_partly_cloudy.png",
+        "status": "started",
+        "gemini_tab_id": "357179327",
+        "gemini_url": "https://gemini.google.com/app/e24ae09c42aabab9",
+        "generation_reported_complete": true,
+        "handoff_reported": true,
+        "preview_qa": "pending",
+        "native_download": "pending",
+        "ingest": "pending"
+      }
+    },
+    "quota_blocked_attempts": [],
+    "next_target": "none_Kaohsiung_person_afternoon_partly_cloudy.png"
+  },
+  "last_producer_turn": {
+    "id": "01a15c45-c995-7de3-a4a4-d2225497d783",
+    "status": "completed",
+    "reason": "Candidate generated and Gemini tab handed off; no QA, native download, or ingest performed",
+    "cursor": "f3318444-a8ce-47f1-866d-df8e43f24e26:8"
+  },
+  "current_usage_check": {
+    "ordinaryUsageAllowed": true,
+    "primary_used_percent": 20,
+    "secondary_used_percent": 19,
+    "gemini_quota_status": "not_checked"
+  },
+  "resume": [
+    "Resume only with gpt-5.6-luna and low reasoning.",
+    "Read formal workflow-status before dispatch to prevent duplicate attempts.",
+    "First settle KAOH-PARTLY-AFTERNOON-20261021-01 from its handed-off Gemini tab. Do not send the producer another prompt until this attempt is accepted or rejected with fresh evidence.",
+    "Obtain an image-element crop of the full candidate for preview QA, then preview-pass or preview-reject. Only after preview-pass record Cache_Data and Downloads baselines and perform a single native download with 1536x2752 JPEG verification before ingest.",
+    "Main thread must obtain fresh evidence from the candidate image element. Clipboard content was observed to remain stale across tabs; never use an unverified clipboard image to pass or reject a candidate.",
+    "The rejection evidence for KAOH-SUNNY-MIDNIGHT-20261020-03 was identical to the preceding clipboard image. Treat its candidate association as unverified; do not claim this is a confirmed second visual failure.",
+    "Record both download and cache baselines before any one-shot original download; do not infer source identity from dimensions alone.",
+    "Preserve accepted assets and existing records. No broad repeat QA.",
+    "Accepted checkpoint count does not establish batch sheets, final publication, festival completion, R2 verification or APK completion."
+  ],
+  "changes_this_heartbeat": "Recorded producer handoff and formal started status for KAOH-PARTLY-AFTERNOON-20261021-01. No preview QA, download, ingest, upload or build performed in this turn."
+}

@@ -236,16 +236,8 @@ public class MainActivity extends Activity {
         });
         root.addView(save, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
 
-        Button update = new Button(this);
-        update.setText("\u66f4\u65b0 App");
-        update.setOnClickListener(v -> {
-            saveSettings();
-            checkAndDownloadUpdate();
-        });
-        root.addView(update, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
-
         TextView version = new TextView(this);
-        version.setText("App \u7248\u672c\uff1a" + AppUpdater.currentVersionName(this));
+        version.setText("App \u7248\u672c\uff1a" + AppVersion.currentName(this));
         version.setGravity(Gravity.CENTER);
         version.setTextColor(Color.rgb(92, 74, 62));
         version.setPadding(0, dp(8), 0, dp(8));
@@ -283,6 +275,7 @@ public class MainActivity extends Activity {
         subtitle.setPadding(0, dp(6), 0, dp(12));
         root.addView(subtitle);
 
+        prefs.edit().remove("admin_upload_token").apply();
         adminToken = input("\u4e0a\u50b3 token", "admin_upload_token", true);
         root.addView(adminToken);
 
@@ -298,7 +291,7 @@ public class MainActivity extends Activity {
         root.addView(label("\u5929\u6c23"));
         root.addView(adminWeather);
 
-        adminPeriod = spinner(new String[] {"sunraise", "Morning", "Afternoon", "Sunset", "Night", "Midnight"}, prefs.getString("admin_period", "Afternoon"));
+        adminPeriod = spinner(new String[] {"Sunrise", "Morning", "Afternoon", "Sunset", "Night", "Midnight"}, prefs.getString("admin_period", "Afternoon"));
         root.addView(label("\u6642\u6bb5"));
         root.addView(adminPeriod);
 
@@ -366,7 +359,7 @@ public class MainActivity extends Activity {
         root.addView(adminImageStatus);
 
         TextView version = new TextView(this);
-        version.setText("Admin APK \u7248\u672c\uff1a" + AppUpdater.currentVersionName(this));
+        version.setText("Admin APK \u7248\u672c\uff1a" + AppVersion.currentName(this));
         version.setGravity(Gravity.CENTER);
         version.setPadding(0, dp(8), 0, 0);
         root.addView(version);
@@ -403,7 +396,7 @@ public class MainActivity extends Activity {
         EditText editText = new EditText(this);
         editText.setHint(hint);
         editText.setSingleLine(true);
-        editText.setText(prefs.getString(key, ""));
+        editText.setText(secret ? "" : prefs.getString(key, ""));
         editText.setInputType(secret
             ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
             : InputType.TYPE_CLASS_TEXT);
@@ -442,7 +435,6 @@ public class MainActivity extends Activity {
 
     private void saveAdminSettings() {
         prefs.edit()
-            .putString("admin_upload_token", adminToken.getText().toString().trim())
             .putString("admin_city", adminCity.getText().toString().trim())
             .putString("admin_country", adminCountry.getText().toString().trim())
             .putString("admin_weather", adminWeather.getSelectedItem().toString())
@@ -503,7 +495,7 @@ public class MainActivity extends Activity {
 
     private void pickAdminImage() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.setType("image/*");
+        intent.setType("image/png");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         startActivityForResult(intent, REQUEST_ADMIN_IMAGE);
     }
@@ -539,6 +531,9 @@ public class MainActivity extends Activity {
     }
 
     private String uploadManualWallpaper() throws Exception {
+        if (adminToken.getText().toString().trim().isEmpty()) {
+            throw new IllegalStateException("Upload token is required and is not stored by the app.");
+        }
         String boundary = "----amigurumi" + System.currentTimeMillis();
         URL url = new URL(AppConfig.DEFAULT_THEME_SERVER_URL + "/admin/upload");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -580,7 +575,9 @@ public class MainActivity extends Activity {
     private void writeFile(DataOutputStream out, String boundary, Uri uri) throws Exception {
         ContentResolver resolver = getContentResolver();
         String type = resolver.getType(uri);
-        if (type == null || type.trim().isEmpty()) type = "image/png";
+        if (!"image/png".equalsIgnoreCase(type)) {
+            throw new IllegalArgumentException("Only PNG files can be uploaded.");
+        }
         out.writeBytes("--" + boundary + "\r\n");
         out.writeBytes("Content-Disposition: form-data; name=\"image\"; filename=\"wallpaper." + extensionFor(type) + "\"\r\n");
         out.writeBytes("Content-Type: " + type + "\r\n\r\n");
@@ -598,8 +595,6 @@ public class MainActivity extends Activity {
     }
 
     private String extensionFor(String type) {
-        if ("image/jpeg".equals(type)) return "jpg";
-        if ("image/webp".equals(type)) return "webp";
         return "png";
     }
 
@@ -808,35 +803,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void checkAndDownloadUpdate() {
-        status("Status: checking GitHub release for this device...");
-        executor.execute(() -> {
-            try {
-                UpdateAsset asset = AppUpdater.findBestAsset();
-                if (asset == null) {
-                    status("Status: no APK asset found in latest GitHub release.");
-                    return;
-                }
-                int currentVersion = AppUpdater.currentVersionCode(this);
-                if (asset.versionCode <= currentVersion) {
-                    status("Status: already on the latest version (" + AppUpdater.currentVersionName(this) + ").");
-                    return;
-                }
-                status("Status: downloading " + asset.name + "...");
-                File apk = AppUpdater.download(this, asset);
-                Uri uri = Uri.parse("content://" + getPackageName() + ".apkprovider/" + apk.getName());
-                Intent intent = new Intent(Intent.ACTION_VIEW);
-                intent.setDataAndType(uri, "application/vnd.android.package-archive");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-                status("Status: installer opened for " + asset.name + ".");
-            } catch (Exception error) {
-                status("Status: update failed. " + error.getMessage());
-            }
-        });
-    }
-
     private void status(String message) {
         runOnUiThread(() -> {
             if (statusText != null) statusText.setText(message);
@@ -953,112 +919,13 @@ class StyleOptions {
     }
 }
 
-class UpdateAsset {
-    final String name;
-    final String url;
-    final int versionCode;
-    final String versionName;
-
-    UpdateAsset(String name, String url, int versionCode, String versionName) {
-        this.name = name;
-        this.url = url;
-        this.versionCode = versionCode;
-        this.versionName = versionName;
-    }
-}
-
-class AppUpdater {
-    static UpdateAsset findBestAsset() throws Exception {
-        JSONObject release = new JSONObject(Http.get(
-            new URL("https://api.github.com/repos/jlchen0130/weather-wallpaper/releases/latest"), null));
-        String versionName = release.optString("tag_name", release.optString("name", ""));
-        int versionCode = versionCodeFromName(versionName);
-        org.json.JSONArray assets = release.getJSONArray("assets");
-        String model = (Build.MANUFACTURER + " " + Build.MODEL + " " + Build.DEVICE).toLowerCase(Locale.US);
-        boolean samsungU23 = model.contains("samsung") && (model.contains("u23") || model.contains("s23"));
-        boolean galaxyZFold5 = model.contains("samsung")
-            && (model.contains("fold5") || model.contains("fold 5") || model.contains("f946"));
-        UpdateAsset fallback = null;
-        for (int i = 0; i < assets.length(); i++) {
-            JSONObject item = assets.getJSONObject(i);
-            String name = item.getString("name");
-            if (!name.toLowerCase(Locale.US).endsWith(".apk")) continue;
-            String url = item.getString("browser_download_url");
-            String lower = name.toLowerCase(Locale.US);
-            if (galaxyZFold5 && (lower.contains("zfold5") || lower.contains("z-fold-5") || lower.contains("fold5"))) {
-                return new UpdateAsset(name, url, versionCode, versionName);
-            }
-            if (samsungU23 && lower.contains("samsung") && (lower.contains("u23") || lower.contains("s23"))) {
-                return new UpdateAsset(name, url, versionCode, versionName);
-            }
-            if (fallback == null && (lower.contains("universal") || lower.contains("debug") || lower.contains("theme"))) {
-                fallback = new UpdateAsset(name, url, versionCode, versionName);
-            }
-        }
-        return fallback;
-    }
-
-    static int currentVersionCode(Context context) {
-        try {
-            if (Build.VERSION.SDK_INT >= 28) {
-                return (int) context.getPackageManager()
-                    .getPackageInfo(context.getPackageName(), 0)
-                    .getLongVersionCode();
-            }
-            return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionCode;
-        } catch (Exception ignored) {
-            return 0;
-        }
-    }
-
-    static String currentVersionName(Context context) {
+class AppVersion {
+    static String currentName(Context context) {
         try {
             return context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
         } catch (Exception ignored) {
             return "current";
         }
-    }
-
-    private static int versionCodeFromName(String raw) {
-        if (raw == null) return 0;
-        String clean = raw.trim().toLowerCase(Locale.US);
-        if (clean.startsWith("v")) clean = clean.substring(1);
-        String[] parts = clean.split("\\.");
-        try {
-            if (parts.length >= 2) {
-                int major = Integer.parseInt(parts[0].replaceAll("[^0-9]", ""));
-                int minor = Integer.parseInt(parts[1].replaceAll("[^0-9]", ""));
-                int patch = 0;
-                if (parts.length >= 3) {
-                    patch = Integer.parseInt(parts[2].replaceAll("[^0-9]", ""));
-                }
-                if (major == 1) return minor + 1;
-                if (minor >= 10) return major * 100 + minor + patch;
-                return major * 100 + minor * 10 + patch;
-            }
-            return Integer.parseInt(clean.replaceAll("[^0-9]", ""));
-        } catch (Exception ignored) {
-            return 0;
-        }
-    }
-
-    static File download(Context context, UpdateAsset asset) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(asset.url).openConnection();
-        connection.setConnectTimeout(30000);
-        connection.setReadTimeout(120000);
-        if (connection.getResponseCode() < 200 || connection.getResponseCode() > 299) {
-            throw new IllegalStateException("HTTP " + connection.getResponseCode());
-        }
-        File file = new File(context.getFilesDir(), "update-" + asset.name.replaceAll("[^A-Za-z0-9._-]", "_"));
-        try (BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
-             FileOutputStream out = new FileOutputStream(file)) {
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
-        }
-        return file;
     }
 }
 
@@ -1203,14 +1070,8 @@ class ServerWallpaperClient {
         if (reason == null || reason.trim().isEmpty()) {
             return "No newer wallpaper is available. Keeping current wallpaper.";
         }
-        if ("generation_already_pending_keep_current_wallpaper".equals(reason)) {
-            return "Server is still generating this wallpaper. Keeping current wallpaper.";
-        }
-        if ("daily_generation_limit_keep_current_wallpaper".equals(reason)) {
-            return "Daily image generation limit reached. Keeping current wallpaper.";
-        }
-        if ("generation_failed_keep_current_wallpaper".equals(reason)) {
-            return "Server image generation failed. Keeping current wallpaper.";
+        if ("manual_wallpaper_missing_keep_current_wallpaper".equals(reason)) {
+            return "No matching manual PNG is available. Keeping current wallpaper.";
         }
         if ("worker_exception".equals(reason)) {
             return "Server reported a temporary error. Keeping current wallpaper.";
@@ -1465,7 +1326,7 @@ class Rules {
         WEATHER.put("Snowy", new WeatherTemplate("white winter yarn landscape", "crochet snowflakes"));
         WEATHER.put("Foggy", new WeatherTemplate("felt fog", "soft dreamy atmosphere"));
         WEATHER.put("Typhoon", new WeatherTemplate("stormy knitted sky with swirling wind", "crochet strong wind and rain bands"));
-        TIME.put("sunraise", "pale dawn light");
+        TIME.put("Sunrise", "pale dawn light");
         TIME.put("Morning", "soft sunrise");
         TIME.put("Afternoon", "mellow warm afternoon light");
         TIME.put("Sunset", "orange pink sky");
@@ -1474,18 +1335,18 @@ class Rules {
     }
 
     static String getTimePeriod(int hour) {
-        if (hour >= 5 && hour <= 6) return "sunraise";
-        if (hour >= 7 && hour <= 11) return "Morning";
-        if (hour >= 12 && hour <= 16) return "Afternoon";
-        if (hour >= 17 && hour <= 18) return "Sunset";
-        if (hour >= 19 && hour <= 23) return "Night";
+        if (hour >= 4 && hour <= 6) return "Sunrise";
+        if (hour >= 7 && hour <= 10) return "Morning";
+        if (hour >= 11 && hour <= 15) return "Afternoon";
+        if (hour >= 16 && hour <= 18) return "Sunset";
+        if (hour >= 19 && hour <= 22) return "Night";
         return "Midnight";
     }
 
     static long nextPeriodCheckDelayMillis() {
         LocalTime now = LocalTime.now();
         int nowSeconds = now.getHour() * 3600 + now.getMinute() * 60 + now.getSecond();
-        int[] starts = new int[] {0, 5 * 3600, 7 * 3600, 12 * 3600, 17 * 3600, 19 * 3600};
+        int[] starts = new int[] {0, 4 * 3600, 7 * 3600, 11 * 3600, 16 * 3600, 19 * 3600, 23 * 3600};
         int next = 24 * 3600;
         for (int start : starts) {
             if (start > nowSeconds) {
@@ -1519,6 +1380,7 @@ class Rules {
 
 class WeatherMapper {
     static String normalize(String value) {
+        if ("Typhoon".equals(value) || "Hurricane".equals(value) || "Tornado".equals(value)) return "Typhoon";
         if ("Clear".equals(value)) return "Sunny";
         if ("Clouds".equals(value)) return "Cloudy";
         if ("Rain".equals(value) || "Drizzle".equals(value) || "Thunderstorm".equals(value)) return "Rainy";
@@ -1831,7 +1693,7 @@ class LocalWallpaperRenderer {
                 start = Color.rgb(145, 202, 224);
                 end = Color.rgb(255, 230, 177);
                 break;
-            case "sunraise":
+            case "Sunrise":
                 start = Color.rgb(255, 218, 178);
                 end = Color.rgb(184, 220, 230);
                 break;

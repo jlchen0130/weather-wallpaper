@@ -1,89 +1,28 @@
-# 天氣桌布
+# 天氣動態桌布維運摘要
 
-## Amigurumi Weather Theme 繁體中文說明
+版本：`4.37`
 
-v2.2 使用 server 與手機端架構。Server 端會根據地點、天氣、天色判斷是否已有可用桌布；若沒有，會使用當地天氣與景點產生新的 Amigurumi 動態桌布背景。手機端會依地區下載相對桌布並套用。手機離線或 server 連線異常時，會保留最後一張已下載的動態桌布。
+目前採用手動 PNG 素材流程：管理者產圖後，透過 Android Admin App 上傳至 Cloudflare Worker 與 R2。OpenAI Image API 自動產圖及 Windows Admin 方案均已永久停用。
 
-## APK
+## 主要規則
 
-- 通用版：`outputs/AmigurumiWeatherTheme-v2.2-universal-debug.apk`
-- Samsung U23/S23 版：`outputs/AmigurumiWeatherTheme-v2.2-samsung-u23-debug.apk`
+- 素材只接受 `image/png`，單檔上限 12 MiB。
+- PNG 是 Live Wallpaper 的靜態背景；動畫由 Android `WallpaperService` 疊加。
+- R2 缺圖時 Worker 回 `HTTP 304`，手機保留現有桌布，不自動產圖。
+- 六時段為 `sunrise`、`morning`、`afternoon`、`sunset`、`night`、`midnight`。
+- Cron 只檢查高雄與台北適配 PNG 是否存在；已有就跳過，缺少就寫 log。
+- Admin token 不儲存在 App，Android backup 已停用；開發完成後撤銷 token。
+- 私人 GitHub 只存程式碼及文字，不存 APK，也不作為手機自動更新來源。
 
-## 手機端
-
-1. 取得 GPS 或自訂城市。
-2. 查詢天氣與天色時段。
-3. 向 `Theme server URL` 提出桌布需求。
-4. Server 有圖就下載既有圖。
-5. Server 沒圖就等待 server 產生新圖。
-6. 下載後自動更新 App 內預覽、靜態桌布與 Live Wallpaper 背景。
-7. 離線或連線異常時保留最後一張動態桌布，並在 App 顯示連線異常訊息。
-8. Server 端產生的桌布只保留 1 日，過期後自動清理。
-9. 手機端只保留最新一張動態桌布檔，更新後會清理舊桌布暫存。
-10. 若已是最新 App 版本，按 `Check app update` 只會顯示已是最新版本，不會進入安裝流程。
-11. 動態桌布會由手機端固定疊加地名，即使 server 背景圖漏掉地名也會顯示。
-12. AI 生成背景時會要求把地名放在較淡、乾淨的天空部位。
-13. Server 每 30 分鐘會追蹤預設城市高雄與台北並預先生圖；其他地點在手機請求時產生。
-
-## 畫面設定
-
-App 中可填寫或切換的部分只保留：
-
-- 地點：GPS 定位或自訂地點。
-- 語言設定：自動偵測系統預設或自定義語種。
-- 更新 App 按鈕，底下顯示 App 版本。
-
-其他參數，例如 Theme server、天氣 API、OpenAI key、model、更新間隔，都已隱藏為預設值。
-
-## Server 端
-
-範例檔案：
+R2 key：
 
 ```text
-backend/amigurumi-theme-server-worker.js
+wallpaper/<style>/<character>/<festival>_<city>_<character>_<period>_<weather>.png
 ```
 
-需要設定：
+驗證：
 
-```text
-OPENWEATHER_API_KEY=你的 OpenWeather API key
-OPENAI_API_KEY=你的 OpenAI API key
-OPENAI_IMAGE_MODEL=gpt-image-1
-WALLPAPER_RETENTION_HOURS=24
+```powershell
+npm.cmd test
+npm.cmd run cf:check
 ```
-
-Cloudflare R2 binding：
-
-```text
-WALLPAPER_BUCKET
-```
-
-## 桌布檔名
-
-新桌布檔名格式：
-
-```text
-city_YYYYMMDD_VVV.png
-```
-
-範例：
-
-```text
-kaohsiung_20260610_001.png
-tokyo_20260610_001.png
-```
-
-`VVV` 是當日流水號。
-
-## 地名顯示
-
-桌布留白處會顯示地名：
-
-- 台灣地區：使用本地地名。
-- 外國地區：使用英文地名。
-
-字體會保持明顯，但避開手機系統時間、日期、狀態列與鎖定畫面資訊。
-
-## 更新規則
-
-只有地點、天氣、天色時段其中之一改變時才會要求新桌布。溫度單獨改變不重新產圖。
