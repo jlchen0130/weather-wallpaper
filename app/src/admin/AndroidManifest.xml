@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Merged into the admin flavor only; universal and galaxyZFold5 never see this activity. -->
+    <application>
+        <activity
+            android:name=".WallpaperQaActivity"
+            android:exported="true"
+            android:label="Wallpaper QA">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
