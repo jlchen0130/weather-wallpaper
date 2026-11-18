@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 4.38
+
+- Added an admin-only wallpaper QA mode that steps through every wallpaper in the R2 collection.
+- Split Hsinchu and Chiayi into city and county wallpapers.
+- Mapped server weather to the 14 canonical weather names and used all_day wallpapers for weather without sun time variants.
+- Fell back to the ordinary-weather wallpaper when a festival wallpaper is missing.
+
+### Prompt generator details
 
 - Added a standalone Windows WPF prompt generator for Gemini and other AI agents.
 - Added comprehensive weather, six-period, city, optional festival, and four-style controls.
