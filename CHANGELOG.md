@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added a `play` flavor for Google Play: the free tier stays on the county/city of the first GPS fix, and the one-time in-app product `unlock_all_regions` opens all 22 Taiwan regions.
+- Added a 22-region picker with real coordinates for weather lookups.
+- Added optional release signing from an untracked keystore.properties.
+- Added the Play privacy policy and launch checklist under docs/play-store.
+
 ## 4.38
 
 - Added an admin-only wallpaper QA mode that steps through every wallpaper in the R2 collection.

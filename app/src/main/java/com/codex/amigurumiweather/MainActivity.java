@@ -97,6 +97,9 @@ public class MainActivity extends Activity {
     private TextView adminPrompt;
     private TextView adminImageStatus;
     private Uri adminImageUri;
+    private LinearLayout regionSection;
+    private Spinner regionSpinner;
+    private PlayBilling billing;
     private final Runnable hourlySync = new Runnable() {
         @Override
         public void run() {
@@ -112,6 +115,10 @@ public class MainActivity extends Activity {
         if (isAdminApp()) {
             setContentView(buildAdminUi());
         } else {
+            if (RegionLock.enabled()) {
+                billing = new PlayBilling(this, this::onBillingChanged);
+                billing.start();
+            }
             setContentView(buildUi());
             requestLocationPermissionIfNeeded();
             WallpaperSyncReceiver.schedule(this);
@@ -125,6 +132,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         syncHandler.removeCallbacks(hourlySync);
+        if (billing != null) billing.end();
         executor.shutdownNow();
     }
 
@@ -200,14 +208,21 @@ public class MainActivity extends Activity {
         header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1f));
         root.addView(header);
 
-        useCustomLocation = new CheckBox(this);
-        useCustomLocation.setText("\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS");
-        useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
-        root.addView(useCustomLocation);
+        if (RegionLock.enabled()) {
+            regionSection = new LinearLayout(this);
+            regionSection.setOrientation(LinearLayout.VERTICAL);
+            root.addView(regionSection);
+            fillRegionSection();
+        } else {
+            useCustomLocation = new CheckBox(this);
+            useCustomLocation.setText("\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS");
+            useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
+            root.addView(useCustomLocation);
 
-        customCity = input("\u81ea\u8a02\u5730\u9ede\uff1aKaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
-        if (customCity.getText().toString().trim().isEmpty()) customCity.setText("Kaohsiung");
-        root.addView(customCity);
+            customCity = input("\u81ea\u8a02\u5730\u9ede\uff1aKaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
+            if (customCity.getText().toString().trim().isEmpty()) customCity.setText("Kaohsiung");
+            root.addView(customCity);
+        }
 
         root.addView(label("\u4e3b\u89d2"));
         characterSpinner = spinner(CharacterOptions.LABELS, CharacterOptions.LABELS[CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person"))]);
@@ -253,6 +268,50 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);
         return scroll;
+    }
+
+    /** Play build: free users see their fixed region and the unlock button; buyers pick any region. */
+    private void fillRegionSection() {
+        if (regionSection == null) return;
+        regionSection.removeAllViews();
+        useCustomLocation = null;
+        regionSpinner = null;
+        if (RegionLock.isLocked(this)) {
+            TaiwanRegions.Region region = RegionLock.lockedRegion(this);
+            TextView info = label(region != null
+                ? "免費版：桌布地區固定為「" + region.nameZh + "」（第一次定位的縣市）"
+                : "免費版：第一次成功定位後，桌布會固定在當時所在的縣市");
+            regionSection.addView(info);
+            String price = billing != null ? billing.formattedPrice() : null;
+            Button unlock = new Button(this);
+            unlock.setText(price != null
+                ? "解鎖全部地區（" + price + "）"
+                : "解鎖全部地區");
+            unlock.setOnClickListener(v -> {
+                if (billing == null || !billing.launchPurchase(this)) {
+                    Toast.makeText(this, "暫時無法連線 Google Play，請稍後再試", Toast.LENGTH_LONG).show();
+                }
+            });
+            regionSection.addView(unlock, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+            return;
+        }
+        regionSection.addView(label("已解鎖全部地區"));
+        useCustomLocation = new CheckBox(this);
+        useCustomLocation.setText("指定地區，不使用 GPS");
+        useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
+        regionSection.addView(useCustomLocation);
+        TaiwanRegions.Region current = TaiwanRegions.match(prefs.getString(AppConfig.KEY_CUSTOM_CITY, ""));
+        if (current == null) current = RegionLock.lockedRegion(this);
+        String[] labels = TaiwanRegions.labels();
+        regionSpinner = spinner(labels, labels[TaiwanRegions.indexOf(current != null ? current.key : "Kaohsiung")]);
+        regionSection.addView(regionSpinner);
+    }
+
+    private void onBillingChanged(String message) {
+        runOnUiThread(() -> {
+            if (message != null) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            if (regionSection != null && regionSection.isAttachedToWindow()) fillRegionSection();
+        });
     }
 
     private View buildAdminUi() {
@@ -408,6 +467,8 @@ public class MainActivity extends Activity {
         boolean useCustom = useCustomLocation != null && useCustomLocation.isChecked();
         String city = customCity != null ? customCity.getText().toString().trim()
             : prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung");
+        if (regionSpinner != null) city = TaiwanRegions.ALL[regionSpinner.getSelectedItemPosition()].key;
+        if (RegionLock.isLocked(this)) useCustom = false;
         String language = customLanguage != null ? customLanguage.getText().toString().trim()
             : prefs.getString(AppConfig.KEY_CUSTOM_LANGUAGE, "");
         String character = characterSpinner != null
@@ -1083,6 +1144,7 @@ class ServerWallpaperClient {
 class SceneResolver {
     static WeatherScene resolve(Context context) throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+        if (RegionLock.isLocked(context)) return resolveLocked(context);
         if (prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false)) {
             CityInfo city = CityDatabase.forName(prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung"));
             return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, city.latitude, city.longitude)));
@@ -1093,10 +1155,26 @@ class SceneResolver {
         return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, location.getLatitude(), location.getLongitude())));
     }
 
+    /** Free Play tier: the first real GPS fix picks the region, after that GPS is no longer used. */
+    private static WeatherScene resolveLocked(Context context) throws Exception {
+        TaiwanRegions.Region region = RegionLock.lockedRegion(context);
+        if (region == null) {
+            Location location = findRealLocation(context);
+            if (location != null) region = RegionLock.lockFrom(context, reverseGeocode(context, location));
+        }
+        CityInfo city = region != null ? region.toCityInfo() : CityDatabase.forName("Kaohsiung");
+        return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, city.latitude, city.longitude)));
+    }
+
     private static Location findBestLocation(Context context) {
+        Location best = findRealLocation(context);
+        return best != null ? best : CityDatabase.forName("Kaohsiung").toLocation();
+    }
+
+    private static Location findRealLocation(Context context) {
         if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
             && context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            return CityDatabase.forName("Kaohsiung").toLocation();
+            return null;
         }
 
         LocationManager manager = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
@@ -1110,7 +1188,7 @@ class SceneResolver {
             } catch (SecurityException ignored) {
             }
         }
-        return best != null ? best : CityDatabase.forName("Kaohsiung").toLocation();
+        return best;
     }
 
     private static CityInfo reverseGeocode(Context context, Location location) {
@@ -1441,6 +1519,8 @@ class CityDatabase {
     }
 
     static CityInfo forName(String raw) {
+        TaiwanRegions.Region region = TaiwanRegions.match(raw);
+        if (region != null) return region.toCityInfo();
         String key = raw == null ? "" : raw.trim().toLowerCase(Locale.US);
         CityInfo city = DATA.get(key);
         if (city != null) return city;
@@ -1553,6 +1633,8 @@ class EnglishCityNames {
     static String toEnglish(String cityLocal) {
         String mapped = DATA.get(cityLocal);
         if (mapped != null) return mapped;
+        TaiwanRegions.Region region = TaiwanRegions.match(cityLocal);
+        if (region != null) return region.key;
         if (cityLocal == null || cityLocal.trim().isEmpty()) return "Kaohsiung";
         return cityLocal.replace(" City", "").trim();
     }
