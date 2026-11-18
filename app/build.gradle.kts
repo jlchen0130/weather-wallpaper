@@ -68,6 +68,8 @@ android {
         // the one-time in-app product unlock_all_regions opens every region.
         create("play") {
             dimension = "device"
+            // Play listing package name; permanent after the first upload.
+            applicationId = "com.cuteweather.app"
             buildConfigField("boolean", "REGION_LOCK", "true")
         }
     }

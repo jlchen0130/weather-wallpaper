@@ -3,7 +3,7 @@
 ## 版本與商品
 
 - 上架用的是 `play` flavor：`gradle bundlePlayRelease`，輸出 `app/build/outputs/bundle/playRelease/app-play-release.aab`。
-- 套件名稱 `com.codex.amigurumiweather`。第一次上傳之後就**永遠不能改**，要換名稱必須在第一次上傳前決定。
+- 套件名稱 `com.cuteweather.app`（只有 play 版用這個名稱，其他版本維持 `com.codex.amigurumiweather`，所以兩者可以同時裝在同一支手機）。第一次上傳之後就**永遠不能改**。
 - 內購商品（一次性、不可消耗）：ID 是 `unlock_all_regions`，要在 Play Console →「營利」→「產品」→「應用程式內產品」建立，ID 要一字不差。
 - 免費版：鎖定在第一次成功定位的縣市（只限台灣 22 縣市）。還沒定位成功前，顯示高雄的桌布，但不會鎖定。
 - 已購買：可以跟著 GPS 走，或指定 22 縣市其中一個。重新安裝、換手機時，只要是同一個 Google 帳號，打開 App 就會自動恢復。退款後下次開 App 會恢復鎖定。
