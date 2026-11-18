@@ -8,6 +8,11 @@ const MANUAL_UPLOAD_MAX_REQUEST_BYTES = MANUAL_UPLOAD_MAX_BYTES + 256 * 1024;
 const SCHEDULED_CITIES = ["Kaohsiung", "Taipei"];
 const SUPPORTED_STYLES = ["knitted", "colored_pencil"];
 const SUPPORTED_CHARACTERS = ["person", "cat", "dog", "hamster_chinchilla", "parrot"];
+const CANONICAL_WEATHERS = new Set([
+  "sunny", "partly_cloudy", "cloudy", "overcast", "light_rain", "heavy_rain",
+  "typhoon", "fog", "haze", "strong_wind", "thunder_shower", "thunderstorm",
+  "heatwave", "cold_wave"
+]);
 
 const TAIWAN_CITY_ALIASES = {
   taipei: "Taipei",
@@ -40,8 +45,10 @@ const TAIWAN_CITY_ALIASES = {
   "基隆市": "Keelung",
   hsinchu: "Hsinchu",
   "新竹": "Hsinchu",
-  "新竹市": "Hsinchu",
-  "新竹縣": "Hsinchu",
+  hsinchucity: "HsinchuCity",
+  hsinchucounty: "HsinchuCounty",
+  "新竹市": "HsinchuCity",
+  "新竹縣": "HsinchuCounty",
   miaoli: "Miaoli",
   "苗栗": "Miaoli",
   "苗栗縣": "Miaoli",
@@ -56,8 +63,10 @@ const TAIWAN_CITY_ALIASES = {
   "雲林縣": "Yunlin",
   chiayi: "Chiayi",
   "嘉義": "Chiayi",
-  "嘉義市": "Chiayi",
-  "嘉義縣": "Chiayi",
+  chiayicity: "ChiayiCity",
+  chiayicounty: "ChiayiCounty",
+  "嘉義市": "ChiayiCity",
+  "嘉義縣": "ChiayiCounty",
   pingtung: "Pingtung",
   "屏東": "Pingtung",
   "屏東縣": "Pingtung",
@@ -168,10 +177,32 @@ async function wallpaperResponse(request, env) {
   assertBinding(env.WALLPAPER_BUCKET, "WALLPAPER_BUCKET");
   const url = new URL(request.url);
   const scene = await completeScene(parseClientScene(url), url, env);
+  scene.period = wallpaperPeriod(scene);
   const objectKey = buildWallpaperKey(scene, "png");
   const cached = await env.WALLPAPER_BUCKET.get(objectKey);
 
   if (cached) return wallpaperJson(url, scene, objectKey, true);
+  if (scene.festival !== "none") {
+    const baseScene = { ...scene, festival: "none" };
+    const baseKey = buildWallpaperKey(baseScene, "png");
+    if (await env.WALLPAPER_BUCKET.get(baseKey)) return wallpaperJson(url, baseScene, baseKey, true);
+  }
+  if (scene.style !== "knitted" || scene.character !== "person") {
+    const legacyWeather = {
+      partly_cloudy: "cloudy", overcast: "cloudy", fog: "cloudy", haze: "cloudy",
+      light_rain: "rainy", heavy_rain: "rainy", thunder_shower: "thunder", thunderstorm: "thunder"
+    }[scene.weather];
+    const legacyCity = { HsinchuCity: "Hsinchu", HsinchuCounty: "Hsinchu",
+      ChiayiCity: "Chiayi", ChiayiCounty: "Chiayi" }[scene.city];
+    if (legacyWeather || legacyCity) {
+      for (const festival of new Set([scene.festival, "none"])) {
+        const legacyScene = { ...scene, festival, city: legacyCity || scene.city,
+          weather: legacyWeather || scene.weather };
+        const legacyKey = buildWallpaperKey(legacyScene, "png");
+        if (await env.WALLPAPER_BUCKET.get(legacyKey)) return wallpaperJson(url, legacyScene, legacyKey, true);
+      }
+    }
+  }
   return notModified("manual_wallpaper_missing_keep_current_wallpaper");
 }
 
@@ -271,7 +302,22 @@ async function fetchServerWeather(scene, url, env) {
       console.log(JSON.stringify({ level: "warn", event: "server_weather_failed", city: scene.city, status: response.status }));
       return "";
     }
-    return normalizeWeather(body?.weather?.[0]?.main || body?.weather?.[0]?.description || "");
+    const condition = body?.weather?.[0];
+    if (!condition) return "";
+    const id = Number(condition.id);
+    if (id === 800) return "sunny";
+    if (id === 801 || id === 802) return "partly_cloudy";
+    if (id === 803) return "cloudy";
+    if (id === 804) return "overcast";
+    if (id >= 200 && id <= 299) return [200, 201, 202, 230, 231, 232].includes(id)
+      ? "thunder_shower" : "thunderstorm";
+    if ([502, 503, 504, 522, 531].includes(id)) return "heavy_rain";
+    if (id >= 300 && id <= 599) return "light_rain";
+    if (id === 701 || id === 741) return "fog";
+    if ([711, 721, 731, 751, 761, 762].includes(id)) return "haze";
+    if (id === 771) return "strong_wind";
+    if (id === 781) return "typhoon";
+    return normalizeWeather(condition.description || condition.main || "");
   } catch (error) {
     console.log(JSON.stringify({ level: "warn", event: "server_weather_exception", city: scene.city, message: error?.message || String(error) }));
     return "";
@@ -297,10 +343,16 @@ function buildWallpaperKey(scene, extension = "png") {
     scene.festival,
     scene.city,
     scene.character,
-    scene.period,
+    wallpaperPeriod(scene),
     scene.weather
   ].map(filenamePart).join("_");
   return `wallpaper/${filenamePart(scene.style)}/${filenamePart(scene.character)}/${fileName}.${filenamePart(extension)}`;
+}
+
+function wallpaperPeriod(scene) {
+  // The knitted-person collection has time variants only for sun-visible weather.
+  return scene.style === "knitted" && scene.character === "person"
+    && !["sunny", "partly_cloudy"].includes(scene.weather) ? "all_day" : scene.period;
 }
 
 async function auditScheduledCoverage(event, env) {
@@ -476,10 +528,12 @@ function normalizeCity(value) {
 }
 
 function normalizeWeather(value) {
-  const clean = String(value || DEFAULT_WEATHER).trim().toLowerCase();
-  if (/(typhoon|hurricane|cyclone|tropical\s*storm|tornado|颱風|台风)/i.test(clean)) return "typhoon";
-  if (/(thunder|storm|雷|閃電|闪电|hail|冰雹)/i.test(clean)) return "thunder";
-  if (/(rain|drizzle|shower|雨|陣雨|阵雨|豪雨|暴雨|snow|雪|sleet|凍雨|冻雨)/i.test(clean)) return "rainy";
+  const clean = String(value || DEFAULT_WEATHER).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (CANONICAL_WEATHERS.has(clean)) return clean;
+  if (/(torrential|heavy|豪|暴|大雨)/i.test(clean) && /rain|雨/i.test(clean)) return "heavy_rain";
+  if (/(typhoon|hurricane|cyclone|tropical[_\s]*storm|tornado|颱風|台风)/i.test(clean)) return "typhoon";
+  if (/(thunder|storm|雷|閃電|闪电|hail|冰雹)/i.test(clean)) return "thunderstorm";
+  if (/(rain|drizzle|shower|雨|陣雨|阵雨|snow|雪|sleet|凍雨|冻雨)/i.test(clean)) return "light_rain";
   if (/(clear|sun|晴)/i.test(clean)) return "sunny";
   if (/(cloud|overcast|mist|fog|haze|smoke|dust|sand|陰|阴|雲|云|霧|雾|霾|沙|塵|尘)/i.test(clean)) return "cloudy";
   return DEFAULT_WEATHER;
@@ -487,6 +541,7 @@ function normalizeWeather(value) {
 
 function normalizePeriod(value) {
   const clean = String(value || DEFAULT_PERIOD).trim().toLowerCase();
+  if (/^all[ _-]?day$/.test(clean)) return "all_day";
   if (/sunrise|sunraise|dawn|日出/.test(clean)) return "sunrise";
   if (/morning|早上|上午|晨/.test(clean)) return "morning";
   if (/noon|afternoon|中午|下午/.test(clean)) return "afternoon";
@@ -555,7 +610,7 @@ function safeSceneFromUrl(url) {
 function parseAdminScene(form) {
   const date = new Date(String(form.get("date") || ""));
   const festivalDate = Number.isNaN(date.getTime()) ? new Date() : date;
-  return {
+  const scene = {
     city: normalizeCity(form.get("city") || form.get("cityLocal") || form.get("loc") || DEFAULT_CITY),
     weather: normalizeWeather(form.get("weather") || DEFAULT_WEATHER),
     period: normalizePeriod(form.get("period") || DEFAULT_PERIOD),
@@ -563,6 +618,8 @@ function parseAdminScene(form) {
     style: normalizeStyle(form.get("style") || DEFAULT_STYLE),
     festival: normalizeFestival(form.get("festival")) || detectFestival(festivalDate)
   };
+  scene.period = wallpaperPeriod(scene);
+  return scene;
 }
 
 function normalizeFestival(value) {
