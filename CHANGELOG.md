@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 4.39
+
+- Location now always comes from GPS; the custom city setting was removed.
+- Removed the style picker; the needle-felt collection is the only style.
+- Play free tier stays on the first GPS county/city; buying the unlock makes wallpapers follow GPS anywhere.
 
 - Added a `play` flavor for Google Play: the free tier stays on the county/city of the first GPS fix, and the one-time in-app product `unlock_all_regions` opens all 22 Taiwan regions.
-- Added a 22-region picker with real coordinates for weather lookups.
+- Added the 22 Taiwan regions with real coordinates for weather lookups.
 - Added optional release signing from an untracked keystore.properties.
 - Added the Play privacy policy and launch checklist under docs/play-store.
 

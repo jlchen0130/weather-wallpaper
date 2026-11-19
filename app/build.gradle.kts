@@ -40,8 +40,8 @@ android {
         applicationId = "com.codex.amigurumiweather"
         minSdk = 26
         targetSdk = 36
-        versionCode = 438
-        versionName = "4.38"
+        versionCode = 439
+        versionName = "4.39"
         buildConfigField("boolean", "REGION_LOCK", "false")
     }
 

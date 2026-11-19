@@ -76,12 +76,9 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     private TextView statusText;
     private ImageView preview;
-    private EditText customCity;
-    private CheckBox useCustomLocation;
     private CheckBox useCustomLanguage;
     private EditText customLanguage;
     private Spinner characterSpinner;
-    private Spinner styleSpinner;
     private CheckBox dynamicWallpaperToggle;
     private boolean syncInProgress = false;
     private EditText adminToken;
@@ -98,7 +95,6 @@ public class MainActivity extends Activity {
     private TextView adminImageStatus;
     private Uri adminImageUri;
     private LinearLayout regionSection;
-    private Spinner regionSpinner;
     private PlayBilling billing;
     private final Runnable hourlySync = new Runnable() {
         @Override
@@ -112,6 +108,8 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
+        // 4.39: custom city and style choices were removed; clear what older versions saved.
+        prefs.edit().putBoolean(AppConfig.KEY_USE_CUSTOM, false).putString(AppConfig.KEY_STYLE, AppConfig.ONLY_STYLE).apply();
         if (isAdminApp()) {
             setContentView(buildAdminUi());
         } else {
@@ -208,29 +206,15 @@ public class MainActivity extends Activity {
         header.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1f));
         root.addView(header);
 
-        if (RegionLock.enabled()) {
-            regionSection = new LinearLayout(this);
-            regionSection.setOrientation(LinearLayout.VERTICAL);
-            root.addView(regionSection);
-            fillRegionSection();
-        } else {
-            useCustomLocation = new CheckBox(this);
-            useCustomLocation.setText("\u4f7f\u7528\u81ea\u8a02\u5730\u9ede\uff0c\u4e0d\u4f7f\u7528 GPS");
-            useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
-            root.addView(useCustomLocation);
-
-            customCity = input("\u81ea\u8a02\u5730\u9ede\uff1aKaohsiung / Taipei / Tokyo", AppConfig.KEY_CUSTOM_CITY, false);
-            if (customCity.getText().toString().trim().isEmpty()) customCity.setText("Kaohsiung");
-            root.addView(customCity);
-        }
+        // Location always comes from GPS; the Play free tier additionally locks to the first fix.
+        regionSection = new LinearLayout(this);
+        regionSection.setOrientation(LinearLayout.VERTICAL);
+        root.addView(regionSection);
+        fillRegionSection();
 
         root.addView(label("\u4e3b\u89d2"));
         characterSpinner = spinner(CharacterOptions.LABELS, CharacterOptions.LABELS[CharacterOptions.indexOf(prefs.getString(AppConfig.KEY_CHARACTER, "person"))]);
         root.addView(characterSpinner);
-
-        root.addView(label("\u756b\u98a8"));
-        styleSpinner = spinner(StyleOptions.LABELS, StyleOptions.LABELS[StyleOptions.indexOf(prefs.getString(AppConfig.KEY_STYLE, "knitted"))]);
-        root.addView(styleSpinner);
 
         dynamicWallpaperToggle = new CheckBox(this);
         dynamicWallpaperToggle.setText("\u555f\u7528\u52d5\u614b\u684c\u5e03");
@@ -270,12 +254,10 @@ public class MainActivity extends Activity {
         return scroll;
     }
 
-    /** Play build: free users see their fixed region and the unlock button; buyers pick any region. */
+    /** Free Play users see their fixed region and the unlock button; everyone else follows GPS. */
     private void fillRegionSection() {
         if (regionSection == null) return;
         regionSection.removeAllViews();
-        useCustomLocation = null;
-        regionSpinner = null;
         if (RegionLock.isLocked(this)) {
             TaiwanRegions.Region region = RegionLock.lockedRegion(this);
             TextView info = label(region != null
@@ -295,16 +277,9 @@ public class MainActivity extends Activity {
             regionSection.addView(unlock, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
             return;
         }
-        regionSection.addView(label("已解鎖全部地區"));
-        useCustomLocation = new CheckBox(this);
-        useCustomLocation.setText("指定地區，不使用 GPS");
-        useCustomLocation.setChecked(prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false));
-        regionSection.addView(useCustomLocation);
-        TaiwanRegions.Region current = TaiwanRegions.match(prefs.getString(AppConfig.KEY_CUSTOM_CITY, ""));
-        if (current == null) current = RegionLock.lockedRegion(this);
-        String[] labels = TaiwanRegions.labels();
-        regionSpinner = spinner(labels, labels[TaiwanRegions.indexOf(current != null ? current.key : "Kaohsiung")]);
-        regionSection.addView(regionSpinner);
+        regionSection.addView(label(RegionLock.enabled()
+            ? "已解鎖全部地區：桌布跟著目前 GPS 所在的縣市"
+            : "地區：依 GPS 定位自動切換"));
     }
 
     private void onBillingChanged(String message) {
@@ -464,19 +439,14 @@ public class MainActivity extends Activity {
     }
 
     private void saveSettings() {
-        boolean useCustom = useCustomLocation != null && useCustomLocation.isChecked();
-        String city = customCity != null ? customCity.getText().toString().trim()
-            : prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung");
-        if (regionSpinner != null) city = TaiwanRegions.ALL[regionSpinner.getSelectedItemPosition()].key;
-        if (RegionLock.isLocked(this)) useCustom = false;
+        boolean useCustom = false;
+        String city = prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung");
         String language = customLanguage != null ? customLanguage.getText().toString().trim()
             : prefs.getString(AppConfig.KEY_CUSTOM_LANGUAGE, "");
         String character = characterSpinner != null
             ? CharacterOptions.valueAt(characterSpinner.getSelectedItemPosition())
             : prefs.getString(AppConfig.KEY_CHARACTER, "person");
-        String style = styleSpinner != null
-            ? StyleOptions.valueAt(styleSpinner.getSelectedItemPosition())
-            : prefs.getString(AppConfig.KEY_STYLE, "knitted");
+        String style = AppConfig.ONLY_STYLE;
         boolean dynamicEnabled = dynamicWallpaperToggle != null && dynamicWallpaperToggle.isChecked();
         prefs.edit()
             .putBoolean(AppConfig.KEY_USE_CUSTOM, useCustom)
@@ -877,6 +847,8 @@ public class MainActivity extends Activity {
 
 class AppConfig {
     static final String PREFS = "theme_config";
+    // Only the needle-felt (knitted) collection exists on R2.
+    static final String ONLY_STYLE = "knitted";
     static final String DEFAULT_THEME_SERVER_URL = "https://amigurumi-weather-theme-server.wemmei0130.workers.dev";
     static final int DEFAULT_UPDATE_MINUTES = 30;
     static final String KEY_WEATHER_BACKEND_URL = "weather_backend_url";
@@ -1077,7 +1049,7 @@ class ServerWallpaperClient {
                 + "&period=" + enc(scene.timePeriod)
                 + "&serverWeather=1"
                 + "&character=" + enc(prefs.getString(AppConfig.KEY_CHARACTER, "person"))
-                + "&style=" + enc(prefs.getString(AppConfig.KEY_STYLE, "knitted"))
+                + "&style=" + enc(AppConfig.ONLY_STYLE)
                 + "&tempMin=" + scene.tempMin
                 + "&tempMax=" + scene.tempMax
                 + "&landmarks=" + enc(join(scene.landmarks));
@@ -1145,11 +1117,6 @@ class SceneResolver {
     static WeatherScene resolve(Context context) throws Exception {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         if (RegionLock.isLocked(context)) return resolveLocked(context);
-        if (prefs.getBoolean(AppConfig.KEY_USE_CUSTOM, false)) {
-            CityInfo city = CityDatabase.forName(prefs.getString(AppConfig.KEY_CUSTOM_CITY, "Kaohsiung"));
-            return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, city.latitude, city.longitude)));
-        }
-
         Location location = findBestLocation(context);
         CityInfo city = reverseGeocode(context, location);
         return applyLanguage(context, SceneFactory.create(city, fetchWeather(context, location.getLatitude(), location.getLongitude())));
@@ -1305,7 +1272,7 @@ class SceneKeys {
     static String forContext(Context context, WeatherScene scene) {
         SharedPreferences prefs = context.getSharedPreferences(AppConfig.PREFS, Context.MODE_PRIVATE);
         String character = prefs.getString(AppConfig.KEY_CHARACTER, "person");
-        String style = prefs.getString(AppConfig.KEY_STYLE, "knitted");
+        String style = AppConfig.ONLY_STYLE;
         return scene.sceneKey() + "|" + character + "|" + style;
     }
 }
